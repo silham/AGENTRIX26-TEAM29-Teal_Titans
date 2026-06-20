@@ -1,29 +1,117 @@
 """Owner: M2. Stream graph execution as SSE RunEvents.
 
-The placeholder below keeps POST /cases/{id}/run working end-to-end before the
-graph is wired. Replace with a real astream over get_graph().
+Checkpointer lifecycle
+─────────────────────
+A module-level async initialiser creates the AsyncPostgresSaver once and reuses
+it for every request (connection pool lives for the process lifetime).  If the
+DB is unavailable (e.g. dev without Postgres) the graph runs without a
+checkpointer — no resume, but everything else works.
+
+Resume flow
+───────────
+Pass `resume=True` when the user returns after an interrupt (upload/answer).
+The graph reads the LangGraph checkpoint for `thread_id=case_id` and continues
+from the interrupted node; no initial state is re-supplied.
 """
+from __future__ import annotations
+
+import asyncio
 from collections.abc import AsyncGenerator
 
+from app.graph.builder import build_graph
 from app.graph.state import GraphState
 from app.schemas.run import RunEvent
 
-NODE_ORDER = ["planner", "knowledge", "dependency", "eligibility", "checklist", "reminder"]
+# ── Checkpointer singleton ────────────────────────────────────────────────────
+
+_checkpointer = None
+_cp_lock = asyncio.Lock()
+_cp_tried = False          # avoid retrying a failed init on every request
+
+
+async def _ensure_checkpointer():
+    """Initialise the AsyncPostgresSaver once; return None on failure."""
+    global _checkpointer, _cp_tried
+    if _checkpointer is not None or _cp_tried:
+        return _checkpointer
+    async with _cp_lock:
+        if _checkpointer is not None or _cp_tried:
+            return _checkpointer
+        _cp_tried = True
+        try:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from app.config import settings
+
+            # psycopg3 needs a plain postgresql:// URL (not SQLAlchemy-prefixed)
+            db_url = settings.database_url.replace("postgresql+psycopg://", "postgresql://")
+            cm = AsyncPostgresSaver.from_conn_string(db_url)
+            checkpointer = await cm.__aenter__()
+            await checkpointer.setup()
+            _checkpointer = checkpointer
+        except Exception:
+            _checkpointer = None
+    return _checkpointer
+
+
+# ── Graph singleton (one compiled graph per checkpointer state) ───────────────
+
+_graph = None
+
+
+async def _get_graph():
+    global _graph
+    if _graph is not None:
+        return _graph
+    checkpointer = await _ensure_checkpointer()
+    _graph = build_graph(checkpointer)
+    return _graph
+
+
+# ── SSE streaming ─────────────────────────────────────────────────────────────
+
+_NODE_NAMES = frozenset(
+    ["planner", "knowledge", "dependency", "eligibility", "checklist", "document", "form", "reminder"]
+)
 
 
 async def run_case(
-    case_id: str, user_id: str, goal: str, language: str = "en"
+    case_id: str,
+    user_id: str,
+    goal: str,
+    language: str = "en",
+    resume: bool = False,
 ) -> AsyncGenerator[str, None]:
-    state: GraphState = {
-        "case_id": case_id,
-        "user_id": user_id,
-        "goal": goal,
-        "language": language,
-    }
+    graph = await _get_graph()
+    config = {"configurable": {"thread_id": case_id}}
 
-    # TODO(M2): replace with
-    #   async for event in get_graph().astream(state, config={"configurable": {"thread_id": case_id}}):
-    #       yield RunEvent(...).to_sse()
-    for node in NODE_ORDER:
-        yield RunEvent(agent=node, status="started").to_sse()
-        yield RunEvent(agent=node, status="completed", message="scaffold").to_sse()
+    initial_state: GraphState | None = None
+    if not resume:
+        initial_state = {
+            "case_id": case_id,
+            "user_id": user_id,
+            "goal": goal,
+            "language": language,
+            "logs": [],
+            "messages": [],
+        }
+
+    try:
+        async for chunk in graph.astream(
+            initial_state,
+            config=config,
+            stream_mode="updates",
+        ):
+            for node_name, node_output in chunk.items():
+                if node_name not in _NODE_NAMES:
+                    continue
+                yield RunEvent(agent=node_name, status="started").to_sse()
+                yield RunEvent(
+                    agent=node_name,
+                    status="completed",
+                    payload=node_output if isinstance(node_output, dict) else {},
+                ).to_sse()
+
+        yield RunEvent(agent="system", status="completed", message="done").to_sse()
+
+    except Exception as exc:
+        yield RunEvent(agent="system", status="error", message=str(exc)).to_sse()
