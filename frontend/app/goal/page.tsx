@@ -99,70 +99,55 @@ function GoalContent() {
             ))}
           </div>
 
-          {/* Input card */}
+          {/* Floating input bar */}
           <motion.div
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.08 }}
-            className="overflow-hidden rounded-2xl bg-white shadow-sm"
+            className="rounded-2xl bg-white shadow-md flex items-end gap-3 p-4"
           >
-            <div className={cn("border-2 rounded-2xl transition-all", goal ? "border-(--primary)" : "border-white")}>
-              <textarea
-                ref={textareaRef}
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                placeholder="e.g. I lost my ID card and need to apply for a passport"
-                rows={4}
-                className="w-full resize-none bg-transparent px-4 pb-2 pt-4 text-base leading-relaxed text-(--foreground) placeholder:text-(--muted-fg) focus:outline-none"
-                style={{ minHeight: 120 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleStart();
-                }}
-              />
+            <textarea
+              ref={textareaRef}
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              placeholder="Tell us what you need help with…"
+              rows={3}
+              className="flex-1 resize-none bg-transparent py-1 pl-1 text-base leading-relaxed text-(--foreground) placeholder:text-(--muted-fg) focus:outline-none focus-visible:outline-none focus:ring-0"
+              style={{ minHeight: 80, maxHeight: 200, outline: "none", boxShadow: "none" }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleStart();
+              }}
+            />
 
-              {/* Toolbar row */}
-              <div className="flex items-center justify-between border-t border-(--border) px-4 py-3">
-                {goal ? (
-                  <button
-                    onClick={() => { setGoal(""); textareaRef.current?.focus(); }}
-                    className="flex items-center gap-1 text-xs text-(--muted-fg) hover:text-(--danger) transition-colors"
-                  >
-                    <X size={13} /> Clear
-                  </button>
-                ) : (
-                  <span className="text-xs text-(--muted-fg)">Write your question above</span>
-                )}
-                <button
-                  onClick={() => void handleStart()}
-                  disabled={!goal.trim() || loading}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-all active:scale-95",
-                    goal.trim() && !loading
-                      ? "bg-(--primary) hover:bg-(--primary-dark)"
-                      : "cursor-not-allowed bg-(--border) text-(--muted-fg)",
-                  )}
-                >
-                  {loading ? (
-                    <><Loader2 size={15} className="animate-spin" /> Please wait…</>
-                  ) : (
-                    <>Get My Steps <ArrowRight size={15} /></>
-                  )}
-                </button>
-              </div>
-            </div>
+            {/* Clear (only when text exists) */}
+            {goal && (
+              <button
+                onClick={() => { setGoal(""); textareaRef.current?.focus(); }}
+                className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-(--muted-fg) hover:bg-(--background) hover:text-(--danger) transition-colors"
+                title="Clear"
+              >
+                <X size={17} />
+              </button>
+            )}
+
+            {/* Submit arrow button */}
+            <button
+              onClick={() => void handleStart()}
+              disabled={!goal.trim() || loading}
+              className={cn(
+                "mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-90",
+                goal.trim() && !loading
+                  ? "bg-(--primary) text-white shadow-sm hover:bg-(--primary-dark)"
+                  : "bg-(--border) text-(--muted-fg) cursor-not-allowed",
+              )}
+            >
+              {loading
+                ? <Loader2 size={18} className="animate-spin" />
+                : <ArrowRight size={18} />}
+            </button>
           </motion.div>
 
-          {/* Full-width submit (mobile friendly large tap target) */}
-          {goal.trim() && !loading && (
-            <motion.button
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => void handleStart()}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-(--primary) py-4 text-base font-bold text-white shadow-md hover:bg-(--primary-dark) active:scale-[0.98] transition-all"
-            >
-              Get My Steps <ArrowRight size={18} />
-            </motion.button>
-          )}
+          <p className="px-1 text-xs text-(--muted-fg)">Press Enter+Ctrl to submit</p>
 
           {/* Error */}
           <AnimatePresence>
