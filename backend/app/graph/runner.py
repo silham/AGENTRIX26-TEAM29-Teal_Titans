@@ -70,7 +70,7 @@ async def _get_graph():
 # ── SSE streaming ─────────────────────────────────────────────────────────────
 
 _NODE_NAMES = frozenset(
-    ["planner", "knowledge", "dependency", "eligibility", "checklist", "document", "form", "reminder"]
+    ["planner", "knowledge", "dependency", "run_eligibility", "run_checklist", "document", "form", "reminder"]
 )
 
 
