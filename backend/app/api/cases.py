@@ -1,7 +1,9 @@
 """Owner: M1. Case CRUD + list + continue-later."""
 from uuid import UUID
 
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import CurrentUser, get_current_user
