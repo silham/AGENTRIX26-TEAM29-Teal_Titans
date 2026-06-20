@@ -1,6 +1,8 @@
 """Shared M4 test fixtures: the "lost NIC → passport" demo GraphState pieces.
 
 Hand-built so M4's nodes can be unit-tested without M3's real rules/RAG data.
+Shapes mirror what M3's nodes actually produce (see app/graph/nodes/dependency.py
+and app/rag/rules.py).
 """
 from __future__ import annotations
 
@@ -22,50 +24,57 @@ def procedures() -> dict[str, dict]:
 
 
 def dependency_graph() -> dict:
-    """Passport is locked behind a valid NIC; duplicate NIC is open."""
+    """Matches M3's dependency node output: passport locked behind duplicate NIC."""
     return {
-        "order": ["duplicate_nic", "passport_application"],
         "services": {
             "duplicate_nic": {
-                "name": "Duplicate NIC Application",
-                "blocked": False,
-                "reason": None,
+                "name": "Duplicate National Identity Card (NIC)",
                 "depends_on": [],
-                "source_url": "https://www.drp.gov.lk",
-                "steps": [
-                    {
-                        "title": "Obtain police report",
-                        "description": "Get a police report for the lost NIC.",
-                        "source_url": "https://www.police.lk",
-                        "fulfills": "police_report",
-                    },
-                    {
-                        "title": "Apply for duplicate NIC",
-                        "description": "Submit the duplicate NIC application.",
-                        "source_url": "https://www.drp.gov.lk",
-                    },
-                ],
+                "status": "ready",
+                "reason": None,
+                "blocked_by": [],
             },
             "passport_application": {
                 "name": "Passport Application",
-                "blocked": True,
+                "depends_on": ["duplicate_nic"],
+                "status": "locked",
                 "reason": "Valid NIC required",
-                "depends_on": ["valid_nic"],
-                "source_url": "https://www.immigration.gov.lk",
-                "steps": [
-                    {
-                        "title": "Complete passport application form",
-                        "description": "Fill the passport application form.",
-                        "source_url": "https://www.immigration.gov.lk",
-                    },
-                    {
-                        "title": "Submit passport application",
-                        "description": "Submit the form and documents.",
-                        "source_url": "https://www.immigration.gov.lk",
-                    },
-                ],
+                "blocked_by": ["duplicate_nic"],
             },
         },
+        "order": ["duplicate_nic", "passport_application"],
+        "locked": ["passport_application"],
+    }
+
+
+def steps_by_service() -> dict[str, list[dict]]:
+    """Stand-in for {sid: rules.steps(sid)} — the per-service ordered steps."""
+    return {
+        "duplicate_nic": [
+            {
+                "title": "Obtain police report",
+                "description": "Get a police report for the lost NIC.",
+                "source_url": "https://www.police.lk",
+                "fulfills": "police_report",
+            },
+            {
+                "title": "Apply for duplicate NIC",
+                "description": "Submit the duplicate NIC application.",
+                "source_url": "https://www.drp.gov.lk",
+            },
+        ],
+        "passport_application": [
+            {
+                "title": "Complete passport application form",
+                "description": "Fill the passport application form.",
+                "source_url": "https://www.immigration.gov.lk",
+            },
+            {
+                "title": "Submit passport application",
+                "description": "Submit the form and documents.",
+                "source_url": "https://www.immigration.gov.lk",
+            },
+        ],
     }
 
 

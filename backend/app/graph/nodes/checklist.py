@@ -1,38 +1,36 @@
 """Owner: M4. Checklist node — ordered tasks + progress + next best action.
 
-Combines requirements (M3), dependency order/locks (M3) and eligibility (M4) into
-a single ordered, status-bearing task list, computes a progress %, marks the one
-"next best action", and persists the steps via M1's repositories.steps.
+Combines dependency order/locks (M3) and eligibility (M4) with the per-service
+steps from the rules layer (M3) into a single ordered, status-bearing task list,
+computes a progress %, marks the one "next best action", and persists the steps
+via M1's repositories.steps.
 
 Consumes (from GraphState)
-    requirements      : list[str]            (M3) requirement ids across services
-    dependency_graph  : dict                 (M3) see SHAPE below
-    eligibility       : dict                  (M4) from the eligibility node
-    documents         : list[dict]           (M5) [{"name","type","status","issues"}, ...]
+    dependency_graph  : dict          (M3) see SHAPE below
+    eligibility       : dict          (M4) from the eligibility node
+    documents         : list[dict]    (M5) [{"name","type","status","issues"}, ...]
     case_id           : str
 
 Produces (into GraphState)
     checklist : list[dict]   ordered items (richer than a Step row; for the UI)
     progress  : int          0–100
 
-dependency_graph SHAPE this node expects from M3 (documented here so M3 can align;
-all keys read defensively):
+dependency_graph SHAPE (produced by M3's dependency node):
     {
-      "order": ["duplicate_nic", "passport_application"],   # service ids, dependency-sorted
       "services": {
         "<service_id>": {
-          "name": "Passport Application",
-          "blocked": false,
-          "reason": "Valid NIC required",        # when blocked
-          "depends_on": ["valid_nic"],
-          "source_url": "https://...",
-          "steps": [
-            {"title": "...", "description": "...", "source_url": "...",
-             "fulfills": "police_report"}         # optional: requirement id this step satisfies
-          ]
-        }
-      }
+          "name": str,
+          "depends_on": [service_id, ...],
+          "status": "ready" | "locked",
+          "reason": str | None,            # when locked
+          "blocked_by": [service_id, ...],
+        }, ...
+      },
+      "order": [service_id, ...],          # prerequisites first
+      "locked": [service_id, ...],
     }
+The per-service *steps* are NOT in the dependency graph — they come from
+rules.steps(service) (each: title, description, source_url).
 
 Step persistence uses M1's column names only (ord, title, description, status,
 depends_on, source_url, reason); UI-only keys (service, fulfills) are stripped.
@@ -43,6 +41,7 @@ from typing import Any
 
 from app.graph.nodes.audit import audit
 from app.graph.state import GraphState
+from app.rag import rules
 from app.repositories.steps import replace_steps
 
 # Columns accepted by repositories.steps.replace_steps (-> Step(**item)).
@@ -71,12 +70,28 @@ def _service_order(dependency_graph: dict) -> list[str]:
     return list((dependency_graph.get("services") or {}).keys())
 
 
+def _is_locked(svc: dict, elig_service: dict) -> tuple[bool, str | None]:
+    """Lock a service if M3 locked it (status) OR eligibility blocked it."""
+    dep_locked = svc.get("status") == "locked" or bool(svc.get("blocked"))
+    if dep_locked:
+        return True, svc.get("reason") or "Blocked by a prerequisite step."
+    if (elig_service or {}).get("verdict") == "blocked":
+        blockers = (elig_service or {}).get("blockers") or []
+        return True, blockers[0]["reason"] if blockers else "Not eligible for this service."
+    return False, None
+
+
 def compose_checklist(
     dependency_graph: dict,
     eligibility: dict,
     documents: list[dict],
+    steps_by_service: dict[str, list[dict]],
 ) -> tuple[list[dict[str, Any]], int]:
-    """Pure composition. Returns (ordered_items, progress_percent)."""
+    """Pure composition. Returns (ordered_items, progress_percent).
+
+    ``steps_by_service`` maps service_id -> ordered step dicts (from rules.steps),
+    kept as a parameter so this stays pure and unit-testable without the rules layer.
+    """
     services = (dependency_graph or {}).get("services") or {}
     elig_services = (eligibility or {}).get("services") or {}
     satisfied = _accepted_requirements(documents)
@@ -87,21 +102,9 @@ def compose_checklist(
 
     for sid in _service_order(dependency_graph or {}):
         svc = services.get(sid, {}) or {}
-        # A service is locked by a dependency OR by an eligibility "blocked" verdict.
-        dep_blocked = bool(svc.get("blocked"))
-        elig_verdict = (elig_services.get(sid) or {}).get("verdict")
-        elig_blocked = elig_verdict == "blocked"
-        locked = dep_blocked or elig_blocked
+        locked, lock_reason = _is_locked(svc, elig_services.get(sid) or {})
 
-        if dep_blocked:
-            lock_reason = svc.get("reason") or "Blocked by a prerequisite step."
-        elif elig_blocked:
-            blockers = (elig_services.get(sid) or {}).get("blockers") or []
-            lock_reason = blockers[0]["reason"] if blockers else "Not eligible for this service."
-        else:
-            lock_reason = None
-
-        for step in svc.get("steps", []) or []:
+        for step in steps_by_service.get(sid, []) or []:
             fulfills = step.get("fulfills")
             if locked:
                 status = "locked"
@@ -119,7 +122,7 @@ def compose_checklist(
                     "description": step.get("description"),
                     "status": status,
                     "depends_on": svc.get("depends_on", []) or [],
-                    "source_url": step.get("source_url") or svc.get("source_url"),
+                    "source_url": step.get("source_url") or rules_source(sid),
                     "reason": lock_reason if status == "locked" else None,
                     # UI-only metadata (stripped before persistence):
                     "service": sid,
@@ -139,6 +142,14 @@ def compose_checklist(
     return items, progress
 
 
+def rules_source(service: str) -> str | None:
+    """Service-level source URL fallback (wrapped so tests can monkeypatch)."""
+    try:
+        return rules.source_url(service)
+    except Exception:
+        return None
+
+
 def _persist(case_id: str, items: list[dict]) -> None:
     """Persist steps via M1's repo. Best-effort: skipped if no DB (unit tests)."""
     if not case_id:
@@ -156,10 +167,15 @@ def _persist(case_id: str, items: list[dict]) -> None:
 
 
 def checklist(state: GraphState) -> dict:
+    dep_graph = state.get("dependency_graph", {}) or {}
+    order = _service_order(dep_graph)
+    steps_by_service = {sid: rules.steps(sid) for sid in order}
+
     items, progress = compose_checklist(
-        state.get("dependency_graph", {}) or {},
+        dep_graph,
         state.get("eligibility", {}) or {},
         state.get("documents", []) or [],
+        steps_by_service,
     )
 
     try:

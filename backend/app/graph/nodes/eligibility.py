@@ -48,6 +48,7 @@ _FIELD_LABELS = {
     "residence_district": "your district of residence",
     "employment_status": "your employment status",
     "student_status": "whether you are a student",
+    "has_existing_nic_number": "whether you already have an NIC number",
 }
 
 
