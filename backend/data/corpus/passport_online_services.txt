@@ -1,0 +1,13 @@
+source_url: https://eservices.immigration.gov.lk/
+title: Passport e-Services and Appointments — Department of Immigration & Emigration
+
+The Department of Immigration & Emigration provides an online e-Services portal for
+passport applications. Through the portal an applicant can complete the application form,
+make an online payment, and book an appointment for submission at the Head Office in
+Battaramulla or a Regional Office.
+
+Booking an appointment online reduces waiting time on the day of submission. The one-day
+(same-day) service is available only at the Head Office and carries a higher fee. After
+submission, applicants can check the status of their passport through the portal. A valid
+National Identity Card and a certified application form are still required even when
+applying online; the portal does not waive the standard document requirements.
