@@ -1,16 +1,46 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import { CheckCircle2, XCircle, AlertCircle, Upload, FileQuestion } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Document } from "@/lib/types";
 
-const DOC_CONFIG = {
-  accepted:           { icon: CheckCircle2, color: "text-[--success]",  bg: "bg-emerald-950/30", border: "border-emerald-700/40", label: "Accepted" },
-  rejected:           { icon: XCircle,      color: "text-[--danger]",   bg: "bg-red-950/20",     border: "border-red-700/40",     label: "Rejected" },
-  incomplete:         { icon: AlertCircle,  color: "text-amber-400",    bg: "bg-amber-950/20",   border: "border-amber-700/40",   label: "Incomplete" },
-  missing:            { icon: FileQuestion, color: "text-[--muted-fg]", bg: "bg-[--surface]",    border: "border-[--border]",     label: "Missing" },
-  needs_verification: { icon: Upload,       color: "text-[--primary]",  bg: "bg-teal-950/20",    border: "border-teal-700/40",    label: "Needs Verification" },
+const DOC_CFG = {
+  accepted: {
+    Icon: CheckCircle2,
+    iconClass: "text-(--success)",
+    cardClass: "border-green-200 bg-(--success-light)",
+    badge: "Ready ✓",
+    badgeClass: "bg-green-100 text-(--success)",
+  },
+  rejected: {
+    Icon: XCircle,
+    iconClass: "text-(--danger)",
+    cardClass: "border-red-200 bg-(--danger-light)",
+    badge: "Problem — see below",
+    badgeClass: "bg-red-100 text-(--danger)",
+  },
+  incomplete: {
+    Icon: AlertCircle,
+    iconClass: "text-orange-500",
+    cardClass: "border-orange-200 bg-orange-50",
+    badge: "Not complete",
+    badgeClass: "bg-orange-100 text-orange-700",
+  },
+  missing: {
+    Icon: FileQuestion,
+    iconClass: "text-(--muted-fg)",
+    cardClass: "border-(--border) bg-white",
+    badge: "You need this",
+    badgeClass: "bg-(--surface) text-(--muted-fg)",
+  },
+  needs_verification: {
+    Icon: Upload,
+    iconClass: "text-(--primary)",
+    cardClass: "border-blue-200 bg-(--primary-light)",
+    badge: "Being checked",
+    badgeClass: "bg-blue-100 text-(--primary)",
+  },
 };
 
 interface Props {
@@ -24,53 +54,45 @@ export default function DocumentChecklist({ documents, onUpload }: Props) {
   return (
     <div className="space-y-3">
       {documents.map((doc, i) => {
-        const cfg = DOC_CONFIG[doc.status];
-        const Icon = cfg.icon;
+        const cfg      = DOC_CFG[doc.status];
+        const Icon     = cfg.Icon;
+        const canUpload =
+          (doc.status === "missing" || doc.status === "needs_verification") && onUpload;
 
         return (
           <motion.div
             key={doc.id}
-            initial={{ x: -12, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: i * 0.05 }}
-            className={cn(
-              "flex items-start gap-3 rounded-xl border p-4 transition-colors",
-              cfg.bg, cfg.border,
-            )}
+            initial={{ y: 8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: i * 0.06 }}
+            className={cn("rounded-2xl border p-4 transition-colors", cfg.cardClass)}
           >
-            <Icon size={18} className={cn("mt-0.5 shrink-0", cfg.color)} />
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium text-[--foreground]">{doc.name}</p>
-                <span className={cn(
-                  "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                  doc.status === "accepted"   && "bg-emerald-500/20 text-[--success]",
-                  doc.status === "rejected"   && "bg-red-500/20 text-[--danger]",
-                  doc.status === "incomplete" && "bg-amber-500/20 text-amber-400",
-                  doc.status === "missing"    && "bg-[--muted] text-[--muted-fg]",
-                  doc.status === "needs_verification" && "bg-teal-500/20 text-[--primary]",
-                )}>
-                  {cfg.label}
-                </span>
+            <div className="flex items-start gap-3">
+              <Icon size={22} className={cn("mt-0.5 shrink-0", cfg.iconClass)} />
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="text-base font-semibold text-(--foreground)">{doc.name}</p>
+                  <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", cfg.badgeClass)}>
+                    {cfg.badge}
+                  </span>
+                </div>
+                {doc.issues.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {doc.issues.map((issue, j) => (
+                      <li key={j} className="text-sm text-(--danger)">• {issue}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              {doc.issues.length > 0 && (
-                <ul className="mt-1.5 space-y-0.5">
-                  {doc.issues.map((issue, j) => (
-                    <li key={j} className="flex items-start gap-1 text-xs text-[--muted-fg]">
-                      <span className="mt-0.5 shrink-0 text-[--danger]">•</span>
-                      {issue}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
-            {(doc.status === "missing" || doc.status === "needs_verification") && onUpload && (
+
+            {canUpload && (
               <button
                 onClick={() => onUpload(doc.name)}
-                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[--primary]/40 px-3 py-1.5 text-xs text-[--primary] hover:bg-teal-950/40 transition-colors"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-(--primary) bg-white py-3 text-sm font-semibold text-(--primary) hover:bg-(--primary-light) active:scale-95 transition-all"
               >
-                <Upload size={12} />
-                Upload
+                <Upload size={16} />
+                Upload this document
               </button>
             )}
           </motion.div>
@@ -79,3 +101,4 @@ export default function DocumentChecklist({ documents, onUpload }: Props) {
     </div>
   );
 }
+

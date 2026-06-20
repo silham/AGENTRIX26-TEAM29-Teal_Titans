@@ -2,172 +2,181 @@
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle2, AlertCircle, Cpu } from "lucide-react";
-import AgentCard from "@/components/AgentCard";
 import Navbar from "@/components/Navbar";
 import { api } from "@/lib/api";
 import { AGENTS } from "@/lib/types";
-import type { AgentState, RunEvent } from "@/lib/types";
+import type { RunEvent } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
-function buildInitialAgents(): AgentState[] {
-  return AGENTS.map((a) => ({ ...a, status: "idle" as const }));
-}
+// Plain-English messages — no "Agent" names shown to citizens
+const STEP_MSGS: Record<string, string> = {
+  planner:     "Reading what you need...",
+  knowledge:   "Checking official government rules...",
+  dependency:  "Finding the right steps for you...",
+  eligibility: "Checking if you qualify...",
+  checklist:   "Creating your personal plan...",
+  document:    "Listing the documents you need...",
+  form:        "Checking what forms to fill...",
+  reminder:    "Almost done — finalising your plan...",
+};
 
 export default function ProcessingPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params); // Next.js 16: params is a Promise
+  const { id } = use(params);
   const router  = useRouter();
 
-  const [agents,    setAgents]    = useState<AgentState[]>(buildInitialAgents);
-  const [done,      setDone]      = useState(false);
-  const [error,     setError]     = useState("");
-  const [goal,      setGoal]      = useState("");
-  const [statusMsg, setStatusMsg] = useState("Initialising agents…");
+  const [doneCount,  setDoneCount]  = useState(0);
+  const [currentMsg, setCurrentMsg] = useState("Getting started...");
+  const [goal,       setGoal]       = useState("");
+  const [done,       setDone]       = useState(false);
+  const [error,      setError]      = useState("");
 
-  // Load the case goal for display
+  const total = AGENTS.length;
+  const pct   = Math.round((doneCount / total) * 100);
+
   useEffect(() => {
-    api.getCase(id)
-      .then((c) => setGoal(c.goal))
-      .catch(() => {});
+    api.getCase(id).then((c) => setGoal(c.goal)).catch(() => {});
   }, [id]);
 
-  // Start SSE stream
   useEffect(() => {
-    setStatusMsg("Starting your case…");
-
     const stop = api.streamRun(
       id,
       (evt: RunEvent) => {
-        setAgents((prev) =>
-          prev.map((a) => {
-            if (a.name !== evt.agent) return a;
-            if (evt.status === "started")   return { ...a, status: "running" };
-            if (evt.status === "completed") return { ...a, status: "done", payload: evt.payload ?? undefined };
-            if (evt.status === "error")     return { ...a, status: "error" };
-            return a;
-          }),
-        );
-        if (evt.status === "started")
-          setStatusMsg(`${evt.agent.charAt(0).toUpperCase() + evt.agent.slice(1)} Agent is running…`);
+        if (evt.status === "started" && STEP_MSGS[evt.agent]) {
+          setCurrentMsg(STEP_MSGS[evt.agent]);
+        }
+        if (evt.status === "completed") {
+          setDoneCount((n) => n + 1);
+        }
       },
       () => {
         setDone(true);
-        setStatusMsg("All agents completed!");
-        // Auto-navigate to case detail after 1.8s
-        setTimeout(() => router.push(`/cases/${id}`), 1800);
+        setCurrentMsg("Your plan is ready!");
+        setTimeout(() => router.push(`/cases/${id}`), 2000);
       },
       (msg) => {
         setError(msg);
-        setStatusMsg("An error occurred");
       },
     );
-
     return stop;
   }, [id, router]);
 
-  const completedCount = agents.filter((a) => a.status === "done").length;
-  const totalCount     = agents.length;
-  const pct            = Math.round((completedCount / totalCount) * 100);
-
   return (
-    <div className="flex min-h-dvh flex-col bg-[--background]">
+    <div className="flex min-h-dvh flex-col bg-white">
       <Navbar />
 
-      <main className="flex flex-1 flex-col items-center px-4 py-12">
-        <div className="w-full max-w-xl">
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm text-center">
 
-          {/* Header */}
+          {/* Goal text */}
+          {goal && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-8 text-sm italic leading-relaxed text-[--muted-fg] line-clamp-2"
+            >
+              &ldquo;{goal}&rdquo;
+            </motion.p>
+          )}
+
+          {/* Status icon */}
           <motion.div
-            initial={{ y: -12, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="mb-10 text-center"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mb-6 flex justify-center"
           >
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[--primary]/30 bg-teal-950/40 px-4 py-1.5 text-sm text-[--primary]">
-              <Cpu size={13} />
-              Multi-Agent Processing
-            </div>
-            <h1 className="text-2xl font-bold text-[--foreground] sm:text-3xl">
-              Agents are planning your procedure
-            </h1>
-            {goal && (
-              <p className="mt-2 text-sm text-[--muted-fg] italic line-clamp-2">
-                &ldquo;{goal}&rdquo;
-              </p>
+            {done ? (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-green-300 bg-[--success-light]">
+                <CheckCircle2 size={44} className="text-[--success]" />
+              </div>
+            ) : error ? (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-red-300 bg-[--danger-light]">
+                <AlertCircle size={44} className="text-[--danger]" />
+              </div>
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-blue-300 bg-[--primary-light]">
+                <Loader2 size={44} className="animate-spin text-[--primary]" />
+              </div>
             )}
           </motion.div>
 
+          {/* Current message */}
+          <motion.h1
+            key={currentMsg}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "text-xl font-bold",
+              done  ? "text-[--success]"  :
+              error ? "text-[--danger]"   :
+              "text-[--foreground]",
+            )}
+          >
+            {done  ? "Your plan is ready!" :
+             error ? "Something went wrong" :
+             currentMsg}
+          </motion.h1>
+
+          {!done && !error && (
+            <p className="mt-2 text-sm text-[--muted-fg]">
+              Please wait — this takes about 10–20 seconds
+            </p>
+          )}
+
           {/* Progress bar */}
-          <div className="mb-8">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-[--muted-fg]">
-                {done
-                  ? <CheckCircle2 size={14} className="text-[--success]" />
-                  : error
-                  ? <AlertCircle size={14} className="text-[--danger]" />
-                  : <Loader2 size={14} className="animate-spin text-[--primary]" />
-                }
-                {statusMsg}
-              </span>
-              <span className="font-mono text-xs text-[--primary]">{pct}%</span>
+          {!done && !error && (
+            <div className="mt-8">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="text-[--muted-fg]">Progress</span>
+                <span className="font-bold text-[--primary]">{pct}%</span>
+              </div>
+              <div className="h-3 w-full overflow-hidden rounded-full bg-[--surface]">
+                <motion.div
+                  className="h-full rounded-full bg-[--primary]"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ ease: "easeOut", duration: 0.4 }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-[--muted-fg]">
+                Step {doneCount} of {total}
+              </p>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-[--border]">
-              <motion.div
-                className={cn(
-                  "h-full rounded-full",
-                  done  ? "bg-[--success]" :
-                  error ? "bg-[--danger]" :
-                  "bg-gradient-to-r from-[--primary] to-emerald-400",
-                )}
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{ ease: "easeOut", duration: 0.4 }}
-              />
-            </div>
-          </div>
+          )}
 
-          {/* Agent cards */}
-          <div>
-            {agents.map((agent, i) => (
-              <AgentCard
-                key={agent.name}
-                agent={agent}
-                index={i}
-                isLast={i === agents.length - 1}
-              />
-            ))}
-          </div>
-
-          {/* Error state */}
-          {error && (
+          {/* Done */}
+          {done && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-4 rounded-xl border border-[--danger]/30 bg-red-950/20 p-4 text-sm text-[--danger]"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-8"
             >
-              <p className="font-medium">Something went wrong</p>
-              <p className="mt-1 text-xs opacity-80">{error}</p>
+              <p className="mb-4 text-sm text-[--muted-fg]">Taking you to your plan now…</p>
               <button
                 onClick={() => router.push(`/cases/${id}`)}
-                className="mt-3 text-xs underline hover:no-underline"
+                className="inline-flex items-center gap-2 rounded-2xl bg-[--primary] px-8 py-4 text-base font-bold text-white hover:bg-[--primary-dark] active:scale-95 transition-all"
               >
-                Go to case anyway →
+                See My Plan →
               </button>
             </motion.div>
           )}
 
-          {/* Done state */}
-          {done && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mt-4 rounded-xl border border-[--success]/30 bg-emerald-950/20 p-4 text-center"
-            >
-              <CheckCircle2 size={28} className="mx-auto mb-2 text-[--success]" />
-              <p className="font-semibold text-[--success]">Your procedure plan is ready!</p>
-              <p className="mt-1 text-xs text-[--muted-fg]">Redirecting to your case…</p>
+          {/* Error */}
+          {error && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 space-y-3">
+              <p className="text-sm text-[--muted-fg]">
+                Could not connect to server. Check your connection and try again.
+              </p>
+              <button
+                onClick={() => router.push(`/cases/${id}`)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-[--primary] px-8 py-4 text-base font-bold text-white"
+              >
+                Continue Anyway →
+              </button>
             </motion.div>
           )}
+
         </div>
       </main>
     </div>

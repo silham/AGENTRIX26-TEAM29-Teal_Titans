@@ -3,229 +3,192 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Bot, GitBranch, Shield, FileCheck,
-  Clock, Globe, ChevronRight, Zap, Lock
+  CreditCard, FileSearch, Car, FileText, Store, Flame,
+  MessageSquarePlus, ClipboardList, HelpCircle,
+  ChevronRight, ArrowRight,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { DEMO_GOALS } from "@/lib/types";
 
-const FEATURES = [
-  { icon: Bot,       title: "Multi-Agent Planning",     desc: "8 specialised agents — Planner, Knowledge, Dependency, Eligibility, Checklist, Document, Form, Reminder — collaborate to manage your procedure." },
-  { icon: GitBranch, title: "Dependency-Aware Workflow", desc: "Cannot apply for a passport without a NIC? The Dependency Agent locks blocked steps and tells you exactly what to do first." },
-  { icon: Shield,    title: "RAG-Verified Information",  desc: "Every recommendation is backed by official government sources. Verified facts are always separated from AI suggestions with citations." },
-  { icon: FileCheck, title: "Smart Document Validation", desc: "Upload your documents and the AI checks for missing signatures, incorrect photos, incomplete fields, and readability issues." },
-  { icon: Clock,     title: "Stateful Case Memory",      desc: "Start today, continue next week. Your progress is saved and resumable. The system remembers exactly where you left off." },
-  { icon: Globe,     title: "Trilingual Support",        desc: "Available in Sinhala, Tamil, and English. Designed for every Sri Lankan citizen, including those in rural and underserved areas." },
+const QUICK_ACTIONS = [
+  { Icon: MessageSquarePlus, label: "Get Help",  href: "/goal",      bg: "bg-blue-100",   color: "text-blue-700"   },
+  { Icon: ClipboardList,     label: "My Plans",  href: "/dashboard", bg: "bg-purple-100", color: "text-purple-700" },
+  { Icon: HelpCircle,        label: "How?",      href: "#how",       bg: "bg-teal-100",   color: "text-teal-700"   },
 ];
 
-const HOW_IT_WORKS = [
-  { step: "01", title: "Describe your need",    desc: "Type your goal in plain language. No need to know form names or department codes." },
-  { step: "02", title: "Agents plan for you",   desc: "8 AI agents retrieve verified information, check dependencies, and build your personalised workflow." },
-  { step: "03", title: "Follow your roadmap",   desc: "Complete tasks in order, upload documents for AI validation, and track progress on your dashboard." },
+const SERVICES = [
+  {
+    Icon: CreditCard, label: "Lost my ID card",
+    sub: "Get a replacement NIC",
+    href: "/goal?q=I+lost+my+NIC+and+need+a+replacement",
+    bg: "bg-red-100", color: "text-red-600",
+  },
+  {
+    Icon: FileSearch, label: "Need a passport",
+    sub: "Apply or renew your passport",
+    href: "/goal?q=I+want+to+apply+for+a+passport",
+    bg: "bg-violet-100", color: "text-violet-600",
+  },
+  {
+    Icon: Car, label: "Driving licence",
+    sub: "Renew or apply for the first time",
+    href: "/goal?q=I+want+to+renew+my+driving+licence",
+    bg: "bg-sky-100", color: "text-sky-600",
+  },
+  {
+    Icon: FileText, label: "Birth certificate",
+    sub: "Get a certified copy",
+    href: "/goal?q=I+need+a+copy+of+my+birth+certificate",
+    bg: "bg-teal-100", color: "text-teal-600",
+  },
+  {
+    Icon: Store, label: "Start a business",
+    sub: "Registration and licence steps",
+    href: "/goal?q=I+am+starting+a+small+business",
+    bg: "bg-green-100", color: "text-green-600",
+  },
+  {
+    Icon: Flame, label: "Lost all documents",
+    sub: "After flood, fire or theft",
+    href: "/goal?q=I+lost+all+my+documents+in+a+flood",
+    bg: "bg-orange-100", color: "text-orange-600",
+  },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="flex min-h-dvh flex-col bg-[--background]">
+    <div className="flex min-h-dvh flex-col bg-(--background)">
       <Navbar />
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <section className="relative flex flex-col items-center justify-center overflow-hidden px-4 py-24 text-center sm:py-32 grid-bg">
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-[600px] w-[600px] rounded-full bg-[--primary]/8 blur-3xl" />
-        </div>
+      <main className="flex-1 px-4 pb-8 pt-5">
+        <div className="mx-auto max-w-lg space-y-5">
 
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6 }}
-          className="relative z-10 max-w-4xl"
-        >
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[--primary]/30 bg-teal-950/40 px-4 py-1.5 text-sm text-[--primary]">
-            <Zap size={13} />
-            Agentic AI · RAG · Citizen Services
+          {/* ── Greeting ──────────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <p className="text-sm text-(--muted-fg)">Welcome to</p>
+            <h1 className="text-2xl font-extrabold text-(--foreground)">HelpLK</h1>
+            <p className="text-sm text-(--muted-fg)">Your Sri Lanka government services guide</p>
+          </motion.div>
+
+          {/* ── Quick actions ────────────────────────────────── */}
+          <div className="grid grid-cols-3 gap-3">
+            {QUICK_ACTIONS.map(({ Icon, label, href, bg, color }, i) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.07 }}
+              >
+                <Link
+                  href={href}
+                  className="flex flex-col items-center gap-2 rounded-2xl bg-white p-4 shadow-sm active:scale-95 transition-all"
+                >
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${bg} ${color}`}>
+                    <Icon size={22} />
+                  </div>
+                  <span className="text-xs font-semibold text-(--foreground)">{label}</span>
+                </Link>
+              </motion.div>
+            ))}
           </div>
 
-          <h1 className="text-4xl font-extrabold leading-tight text-[--foreground] sm:text-5xl lg:text-6xl">
-            Government procedures,{" "}
-            <span className="gradient-text">guided step by step</span>
-          </h1>
-
-          <p className="mt-6 mx-auto max-w-2xl text-base text-[--muted-fg] sm:text-lg leading-relaxed">
-            HelpLK AI is Sri Lanka&apos;s agentic citizen services copilot. Describe your goal
-            in plain language and let 8 specialised AI agents plan, verify, and manage the full
-            procedure for you — from confusion to completion.
-          </p>
-
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          {/* ── Featured card ────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             <Link
               href="/goal"
-              className="flex items-center gap-2 rounded-xl bg-[--primary] px-7 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-teal-500 transition-colors glow-teal"
+              className="block overflow-hidden rounded-3xl bg-(--primary) p-6 active:scale-[0.98] transition-all"
             >
-              Start My Procedure
-              <ArrowRight size={18} />
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-300">
+                Start Here
+              </p>
+              <h2 className="mt-1 text-xl font-extrabold leading-snug text-white">
+                Tell us what you need help with
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-blue-100">
+                Describe your situation in your own words. We find the correct government steps for you.
+              </p>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-(--primary)">
+                Get Help Now <ArrowRight size={16} />
+              </div>
             </Link>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 rounded-xl border border-[--border] px-7 py-3.5 text-base text-[--foreground] hover:border-[--primary]/60 hover:bg-teal-950/20 transition-colors"
-            >
-              View Dashboard
-            </Link>
-          </div>
-        </motion.div>
+          </motion.div>
 
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.35, duration: 0.6 }}
-          className="relative z-10 mt-12 flex max-w-3xl flex-wrap justify-center gap-2"
-        >
-          {DEMO_GOALS.map((goal) => (
-            <Link
-              key={goal}
-              href={`/goal?q=${encodeURIComponent(goal)}`}
-              className="group flex items-center gap-1.5 rounded-full border border-[--border] bg-[--surface] px-3.5 py-1.5 text-xs text-[--muted-fg] hover:border-[--primary]/50 hover:text-[--primary] transition-colors"
-            >
-              {goal}
-              <ChevronRight size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-            </Link>
-          ))}
-        </motion.div>
-      </section>
-
-      {/* ── vs ChatGPT ──────────────────────────────────────────────── */}
-      <section className="border-y border-[--border] bg-[--surface] px-4 py-10">
-        <div className="mx-auto max-w-4xl">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-[--border] p-5">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[--muted-fg]">Generic AI (ChatGPT / Gemini)</p>
-              <ul className="space-y-2 text-sm text-[--muted-fg]">
-                {["Stateless Q&A conversations","May hallucinate procedures","No dependency tracking","No document validation","No progress memory"].map(x => (
-                  <li key={x} className="flex items-center gap-2"><span className="text-[--danger]">✕</span> {x}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border border-[--primary]/50 bg-teal-950/20 p-5 glow-teal">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-[--primary]">HelpLK AI</p>
-              <ul className="space-y-2 text-sm text-[--foreground]">
-                {["Stateful citizen case management","RAG from official government sources","Dependency-aware step locking","AI document verification","Resume progress anytime"].map(x => (
-                  <li key={x} className="flex items-center gap-2"><span className="text-[--success]">✓</span> {x}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <p className="mt-5 text-center text-sm text-[--muted-fg]">
-            <span className="gradient-text font-semibold">ChatGPT answers questions.</span>{" "}
-            HelpLK AI manages the citizen journey.
-          </p>
-        </div>
-      </section>
-
-      {/* ── How it works ────────────────────────────────────────────── */}
-      <section className="px-4 py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-12 text-center">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[--primary]">How it works</p>
-            <h2 className="text-3xl font-bold text-[--foreground]">From confusion to completion</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {HOW_IT_WORKS.map((item, i) => (
-              <motion.div
-                key={item.step}
-                initial={{ y: 16, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="relative rounded-2xl border border-[--border] bg-[--surface] p-6"
-              >
-                <span className="gradient-text-gold text-4xl font-extrabold">{item.step}</span>
-                <h3 className="mt-3 font-semibold text-[--foreground]">{item.title}</h3>
-                <p className="mt-2 text-sm text-[--muted-fg] leading-relaxed">{item.desc}</p>
-                {i < 2 && <ChevronRight size={20} className="absolute -right-3 top-1/2 hidden -translate-y-1/2 text-[--border] sm:block" />}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Features grid ───────────────────────────────────────────── */}
-      <section className="bg-[--surface] px-4 py-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-12 text-center">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[--primary]">Features</p>
-            <h2 className="text-3xl font-bold text-[--foreground]">Everything a citizen needs</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ y: 16, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.06 }}
-                className="group rounded-2xl border border-[--border] bg-[--background] p-6 hover:border-[--primary]/40 transition-colors"
-              >
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-teal-950/50 border border-[--primary]/20 group-hover:bg-teal-950/80 transition-colors">
-                  <f.icon size={20} className="text-[--primary]" />
-                </div>
-                <h3 className="font-semibold text-[--foreground]">{f.title}</h3>
-                <p className="mt-2 text-sm text-[--muted-fg] leading-relaxed">{f.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Agent flow ──────────────────────────────────────────────── */}
-      <section className="px-4 py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-10 text-center">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[--primary]">Architecture</p>
-            <h2 className="text-3xl font-bold text-[--foreground]">8 agents. One goal.</h2>
-          </div>
-          <div className="overflow-x-auto pb-4">
-            <div className="flex min-w-[640px] flex-wrap items-center justify-center gap-2">
-              {["Planner","Knowledge","Dependency","Eligibility","Checklist","Document","Form","Reminder"].map((a, i) => (
-                <motion.div key={a} initial={{ scale: 0.8, opacity: 0 }} whileInView={{ scale: 1, opacity: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.07, type: "spring" }} className="flex items-center gap-2">
-                  <div className="rounded-xl border border-[--primary]/40 bg-teal-950/30 px-4 py-3 text-center">
-                    <p className="text-xs font-semibold text-[--primary]">{a}</p>
-                    <p className="text-[10px] text-[--muted-fg]">Agent</p>
-                  </div>
-                  {i < 7 && <ChevronRight size={14} className="text-[--border] shrink-0" />}
+          {/* ── Common services list ─────────────────────────── */}
+          <div>
+            <h2 className="mb-3 text-base font-bold text-(--foreground)">Common Services</h2>
+            <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+              {SERVICES.map(({ Icon, label, sub, href, bg, color }, i) => (
+                <motion.div
+                  key={label}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + i * 0.05 }}
+                >
+                  <Link
+                    href={href}
+                    className={`flex items-center gap-4 px-4 py-3.5 active:bg-(--background) transition-colors${
+                      i < SERVICES.length - 1 ? " border-b border-(--border)" : ""
+                    }`}
+                  >
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg} ${color}`}>
+                      <Icon size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-(--foreground)">{label}</p>
+                      <p className="text-xs text-(--muted-fg)">{sub}</p>
+                    </div>
+                    <ChevronRight size={16} className="shrink-0 text-(--muted-fg)" />
+                  </Link>
                 </motion.div>
               ))}
             </div>
           </div>
-          <p className="mt-6 text-center text-sm text-[--muted-fg]">
-            Powered by <span className="text-[--foreground]">LangGraph</span> ·{" "}
-            <span className="text-[--foreground]">Groq Llama 3.3 70B</span> ·{" "}
-            <span className="text-[--foreground]">Gemini 1.5 Flash</span> ·{" "}
-            <span className="text-[--foreground]">LlamaIndex</span>
-          </p>
+
+          {/* ── How it works ─────────────────────────────────── */}
+          <div id="how">
+            <h2 className="mb-3 text-base font-bold text-(--foreground)">How it works</h2>
+            <div className="space-y-2.5">
+              {[
+                { n: "1", title: "Tell us what you need", desc: "Describe your situation in your own words — no form names or office addresses needed." },
+                { n: "2", title: "We find the steps", desc: "Official government rules are checked and a plan is built just for you." },
+                { n: "3", title: "Follow your guide", desc: "A clear list of steps and documents to complete, one at a time." },
+              ].map((s, i) => (
+                <motion.div
+                  key={s.n}
+                  initial={{ opacity: 0, x: -8 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.08 }}
+                  className="flex items-start gap-3 rounded-2xl bg-white p-4 shadow-sm"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-(--primary) text-sm font-extrabold text-white">
+                    {s.n}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-(--foreground)">{s.title}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-(--muted-fg)">{s.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Trust note ───────────────────────────────────── */}
+          <div className="rounded-2xl bg-white px-4 py-3.5 shadow-sm">
+            <p className="text-sm font-semibold text-(--foreground)">Free and simple to use</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-(--muted-fg)">
+              Information comes from official Sri Lanka government sources. No registration needed to get started.
+            </p>
+          </div>
+
         </div>
-      </section>
+      </main>
 
-      {/* ── CTA ─────────────────────────────────────────────────────── */}
-      <section className="px-4 py-20 bg-[--surface]">
-        <motion.div
-          initial={{ y: 16, opacity: 0 }}
-          whileInView={{ y: 0, opacity: 1 }}
-          viewport={{ once: true }}
-          className="mx-auto max-w-2xl rounded-3xl border border-[--primary]/40 bg-gradient-to-b from-teal-950/40 to-[--surface] p-10 text-center glow-teal"
-        >
-          <Lock size={32} className="mx-auto mb-4 text-[--primary]" />
-          <h2 className="text-2xl font-bold text-[--foreground] sm:text-3xl">Stop guessing. Start completing.</h2>
-          <p className="mt-4 text-[--muted-fg]">Describe your government service need and let HelpLK AI manage the entire journey.</p>
-          <Link href="/goal" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[--primary] px-8 py-3.5 text-base font-semibold text-white hover:bg-teal-500 transition-colors">
-            Start My Procedure <ArrowRight size={18} />
-          </Link>
-        </motion.div>
-      </section>
-
-      {/* ── Footer ──────────────────────────────────────────────────── */}
-      <footer className="border-t border-[--border] px-4 py-8 text-center">
-        <p className="text-sm text-[--muted-fg]">HelpLK AI · Built for Sri Lanka · AGENTRIX Hackathon 2026</p>
-        <p className="mt-1 text-xs text-[--muted-fg]/60">LangGraph · Groq · Gemini · LlamaIndex · FastAPI · Next.js 16</p>
+      <footer className="border-t border-(--border) bg-white px-4 py-5 text-center">
+        <p className="text-xs text-(--muted-fg)">HelpLK · Sri Lanka Government Services Guide · 2026</p>
       </footer>
     </div>
   );

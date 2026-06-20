@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, BookOpen } from "lucide-react";
+import { X, ExternalLink } from "lucide-react";
 import type { Step } from "@/lib/types";
 
 interface Props {
@@ -20,84 +20,77 @@ export default function ExplainPanel({ step, onClose }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/40"
           />
 
-          {/* Panel — slides in from right on desktop, bottom on mobile */}
+          {/* Bottom sheet — slides up from the bottom on all screen sizes */}
           <motion.aside
-            initial={{ x: "100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed right-0 top-0 z-50 flex h-full w-full flex-col border-l border-[--border] bg-[--surface] shadow-2xl sm:w-[420px]"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 280 }}
+            className="fixed bottom-0 left-0 right-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl"
           >
+            {/* Drag handle */}
+            <div className="flex justify-center pb-2 pt-3">
+              <div className="h-1.5 w-10 rounded-full bg-(--border)" />
+            </div>
+
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[--border] p-5">
-              <div className="flex items-center gap-2">
-                <BookOpen size={18} className="text-[--primary]" />
-                <span className="font-semibold text-[--foreground]">Why this step?</span>
-              </div>
+            <div className="flex items-center justify-between border-b border-(--border) px-5 pb-4">
+              <h2 className="text-lg font-bold text-(--foreground)">About this step</h2>
               <button
                 onClick={onClose}
-                className="rounded-lg p-1.5 text-[--muted-fg] hover:bg-[--muted] hover:text-[--foreground] transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-(--border) text-(--muted-fg) hover:bg-(--surface) transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div className="space-y-5 px-5 py-5 pb-10">
               <div>
-                <p className="text-xs text-[--muted-fg] uppercase tracking-wide mb-1">Step</p>
-                <p className="font-medium text-[--foreground]">{step.title}</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-(--muted-fg)">
+                  Step name
+                </p>
+                <p className="text-base font-semibold text-(--foreground)">{step.title}</p>
               </div>
 
               {step.description && (
                 <div>
-                  <p className="text-xs text-[--muted-fg] uppercase tracking-wide mb-1">Description</p>
-                  <p className="text-sm text-[--foreground] leading-relaxed">{step.description}</p>
-                </div>
-              )}
-
-              {step.reason && (
-                <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
-                  <p className="text-xs text-amber-400 uppercase tracking-wide mb-1">Reason</p>
-                  <p className="text-sm text-[--foreground] leading-relaxed">{step.reason}</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-(--muted-fg)">
+                    What to do
+                  </p>
+                  <p className="text-sm leading-relaxed text-(--foreground)">{step.description}</p>
                 </div>
               )}
 
               {step.status === "locked" && (
-                <div className="rounded-xl border border-[--border] bg-[--surface] p-4 space-y-2">
-                  <p className="text-xs text-[--muted-fg] uppercase tracking-wide">Why is this locked?</p>
-                  <p className="text-sm text-[--foreground] leading-relaxed">
-                    This step is blocked because a prerequisite has not been completed yet.
-                    HelpLK AI prevents you from doing steps in the wrong order to avoid
-                    rejected applications.
+                <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                  <p className="font-semibold text-orange-700">Why is this locked?</p>
+                  <p className="mt-1 text-sm leading-relaxed text-orange-800">
+                    {step.reason ||
+                      "You need to finish the earlier steps first. Once those are done, this step will open for you automatically."}
                   </p>
                 </div>
               )}
 
               {step.source_url && (
-                <div>
-                  <p className="text-xs text-[--muted-fg] uppercase tracking-wide mb-2">Official Source</p>
-                  <a
-                    href={step.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-[--primary]/40 bg-teal-950/20 p-3 text-sm text-[--primary] hover:bg-teal-950/40 transition-colors"
-                  >
-                    <ExternalLink size={14} />
-                    View Official Government Page
-                  </a>
-                </div>
+                <a
+                  href={step.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-2xl border border-(--primary) bg-(--primary-light) p-4 text-sm font-semibold text-(--primary)"
+                >
+                  <ExternalLink size={16} />
+                  View Official Government Page
+                </a>
               )}
 
-              <div className="rounded-xl border border-[--border] bg-[--muted]/30 p-4">
-                <p className="text-xs text-[--muted-fg]">
-                  Information in this panel is retrieved from verified official government sources via the
-                  RAG Knowledge Agent. Always confirm with the relevant department for the latest updates.
-                </p>
-              </div>
+              <p className="text-xs leading-relaxed text-(--muted-fg)">
+                This information comes from official Sri Lanka government sources. Always check
+                with the relevant office for the latest requirements.
+              </p>
             </div>
           </motion.aside>
         </>
@@ -105,3 +98,4 @@ export default function ExplainPanel({ step, onClose }: Props) {
     </AnimatePresence>
   );
 }
+
