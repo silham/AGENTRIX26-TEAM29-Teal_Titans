@@ -1,0 +1,35 @@
+# --- Web (M1 seeds the FULL shared list; members rarely touch this) ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-multipart==0.0.20
+
+# --- Auth (M1) ---
+python-jose[cryptography]==3.3.0
+
+# --- Database (M1) ---
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
+pgvector==0.3.6
+
+# --- Agent graph (M2) ---
+langgraph==0.2.60
+langgraph-checkpoint-postgres==2.0.9
+
+# --- RAG (M3) ---
+llama-index==0.12.10
+llama-index-vector-stores-postgres==0.4.1
+
+# --- LLMs (M2/M3/M5) — free tiers ---
+groq==0.15.0
+google-generativeai==0.8.3
+
+# --- Vision / OCR (M5) ---
+pillow==11.0.0
+pytesseract==0.3.13
+
+# --- Test ---
+pytest==8.3.4
+httpx==0.28.1

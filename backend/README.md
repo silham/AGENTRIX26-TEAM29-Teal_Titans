@@ -12,9 +12,15 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # fill GROQ_API_KEY, GEMINI_API_KEY, DATABASE_URL, AUTH_SECRET
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+
+# Create tables (quick path). Needs a running Postgres with the pgvector extension available.
+python -m app.db.init_db
+# (Alternative: alembic revision --autogenerate -m "initial" && alembic upgrade head)
+
+uvicorn app.main:app --reload --port 8000   # docs at http://localhost:8000/docs
 ```
+
+Smoke test (no DB needed): `pytest`
 
 ## Team
 
