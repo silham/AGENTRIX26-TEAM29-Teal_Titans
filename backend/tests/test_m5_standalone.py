@@ -215,6 +215,7 @@ class TestOCR:
         from app.documents.ocr import extract_text
 
         mock_image = MagicMock()
+        mock_image.convert.return_value.size = (800, 600)
         mock_open.return_value = mock_image
         mock_ocr.return_value = "National Identity Card Kamal Perera 199012345678"
 
@@ -229,6 +230,7 @@ class TestOCR:
         from app.schemas.document import DocumentType
 
         mock_open.return_value = MagicMock()
+        mock_open.return_value.convert.return_value.size = (800, 600)
         mock_ocr.return_value = "National Identity Card Sri Lanka NIC Number 199012345678"
 
         result = classify_from_ocr_text(b"fake-bytes", expected_name="NIC")
