@@ -1,0 +1,51 @@
+{
+  "id": "duplicate_nic",
+  "name": "Duplicate National Identity Card (NIC)",
+  "office": "Department for Registration of Persons (DRP)",
+  "requirements": [
+    "police_report",
+    "birth_certificate",
+    "gn_certified_application",
+    "passport_photos",
+    "application_fee"
+  ],
+  "depends_on": [],
+  "dependency_conditions": [],
+  "eligibility_rules": [
+    { "field": "citizenship", "equals": "sri_lankan" },
+    { "field": "has_existing_nic_number", "equals": true }
+  ],
+  "steps": [
+    {
+      "title": "Obtain a police report for the lost NIC",
+      "description": "Report the loss at your nearest police station and obtain a complaint reference / police report. This is mandatory for a lost-card replacement.",
+      "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+    },
+    {
+      "title": "Prepare your birth certificate",
+      "description": "An original birth certificate is required to verify your identity for the duplicate.",
+      "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+    },
+    {
+      "title": "Complete and certify the application (Form RG-D-01)",
+      "description": "Fill the duplicate NIC application and have it certified by the Grama Niladhari of your division.",
+      "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+    },
+    {
+      "title": "Obtain the required photographs",
+      "description": "Provide studio photographs meeting the DRP specification (digital or printed as instructed at the office).",
+      "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+    },
+    {
+      "title": "Submit at the Divisional Secretariat / DRP and pay the fee",
+      "description": "Hand over the certified application with supporting documents to the Divisional Secretariat or DRP and pay the applicable fee.",
+      "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+    },
+    {
+      "title": "Collect your duplicate NIC",
+      "description": "Collect the duplicate National Identity Card once issued.",
+      "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+    }
+  ],
+  "source_url": "https://www.drp.gov.lk/Templates/listpage_en.html"
+}

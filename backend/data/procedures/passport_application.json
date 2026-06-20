@@ -1,0 +1,62 @@
+{
+  "id": "passport_application",
+  "name": "Passport Application",
+  "office": "Department of Immigration & Emigration",
+  "requirements": [
+    "valid_nic",
+    "birth_certificate",
+    "passport_photos",
+    "application_form_k35a",
+    "application_fee"
+  ],
+  "depends_on": ["duplicate_nic"],
+  "dependency_conditions": [
+    {
+      "service": "duplicate_nic",
+      "when_missing": "valid_nic",
+      "reason": "A valid National Identity Card is required to apply for a passport. If your NIC is lost or damaged, complete the duplicate NIC process first."
+    }
+  ],
+  "eligibility_rules": [
+    { "field": "citizenship", "equals": "sri_lankan" },
+    { "field": "age", "min": 16 }
+  ],
+  "steps": [
+    {
+      "title": "Confirm you hold a valid NIC",
+      "description": "Your National Identity Card number must be valid and the card available. If lost, obtain a duplicate NIC first.",
+      "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=141&Itemid=186&lang=en"
+    },
+    {
+      "title": "Prepare your birth certificate",
+      "description": "An original birth certificate is required as supporting proof of identity and citizenship.",
+      "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=141&Itemid=186&lang=en"
+    },
+    {
+      "title": "Obtain passport-size photographs",
+      "description": "Provide colour photographs taken against a white background meeting the published specification (35mm x 45mm).",
+      "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=147&Itemid=190&lang=en"
+    },
+    {
+      "title": "Fill the passport application form (Form K-35-A)",
+      "description": "Complete the official application form. It must be certified by an authorised officer (e.g. Grama Niladhari).",
+      "source_url": "https://eservices.immigration.gov.lk/"
+    },
+    {
+      "title": "Pay the application fee",
+      "description": "Pay the applicable normal or one-day service fee at the bank counter or online portal.",
+      "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=147&Itemid=190&lang=en"
+    },
+    {
+      "title": "Submit your application",
+      "description": "Submit in person at Head Office (Battaramulla) or a Regional Office, or use the online appointment system.",
+      "source_url": "https://eservices.immigration.gov.lk/"
+    },
+    {
+      "title": "Track your application status",
+      "description": "Track the issuance status and collect the passport once processing is complete.",
+      "source_url": "https://www.immigration.gov.lk/web/index.php?lang=en"
+    }
+  ],
+  "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=141&Itemid=186&lang=en"
+}
