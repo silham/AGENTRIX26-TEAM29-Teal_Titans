@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 
@@ -36,8 +36,9 @@ export default function ProgressRing({ progress, size = 80, stroke = 6, classNam
         className="absolute inset-0 flex flex-col items-center justify-center"
         style={{ top: 0, left: 0, width: size, height: size, position: "absolute" }}
       >
-        <span className="text-lg font-bold text-[--primary]">{progress}%</span>
+        <span className="text-lg font-bold text-(--primary)">{progress}%</span>
       </div>
     </div>
   );
 }
+

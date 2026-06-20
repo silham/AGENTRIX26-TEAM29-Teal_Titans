@@ -66,15 +66,16 @@ export interface AgentState {
   payload?: Record<string, unknown>;
 }
 
+// Plain-English labels visible to citizens (no technical "Agent" naming)
 export const AGENTS: Omit<AgentState, "status">[] = [
-  { name: "planner",     label: "Planner Agent",      description: "Understanding your goal" },
-  { name: "knowledge",   label: "Knowledge Agent",     description: "Searching verified sources" },
-  { name: "dependency",  label: "Dependency Agent",    description: "Checking prerequisite steps" },
-  { name: "eligibility", label: "Eligibility Agent",   description: "Personalising requirements" },
-  { name: "checklist",   label: "Checklist Agent",     description: "Creating your action plan" },
-  { name: "document",    label: "Document Agent",      description: "Validating your documents" },
-  { name: "form",        label: "Form Assistant",      description: "Reviewing form fields" },
-  { name: "reminder",    label: "Reminder Agent",      description: "Setting up nudges" },
+  { name: "planner",     label: "Reading your request",            description: "Understanding what you need help with" },
+  { name: "knowledge",   label: "Checking government information", description: "Finding the correct official rules and steps" },
+  { name: "dependency",  label: "Finding the right order",         description: "Checking which steps must come before others" },
+  { name: "eligibility", label: "Checking your situation",         description: "Making sure the steps match your personal needs" },
+  { name: "checklist",   label: "Building your plan",              description: "Creating your personal step-by-step guide" },
+  { name: "document",    label: "Listing your documents",          description: "Finding out which papers you need to bring" },
+  { name: "form",        label: "Checking the forms",              description: "Looking at what forms need to be filled" },
+  { name: "reminder",    label: "Finishing up",                    description: "Your plan is almost ready" },
 ];
 
 // ── i18n ─────────────────────────────────────────────────────────────────
