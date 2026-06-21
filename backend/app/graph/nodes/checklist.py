@@ -150,26 +150,55 @@ def rules_source(service: str) -> str | None:
         return None
 
 
-def _persist(case_id: str, items: list[dict]) -> None:
-    """Persist steps via M1's repo. Best-effort: skipped if no DB (unit tests)."""
+def _persist(case_id: str, items: list[dict], progress: int) -> None:
+    """Persist steps and update Case.progress. Logs errors instead of silently failing."""
     if not case_id:
         return
+    import sys
     from uuid import UUID
 
+    from sqlalchemy import update
+
+    from app.db.models import Case
     from app.db.session import SessionLocal
 
     rows = [{k: v for k, v in it.items() if k in _STEP_COLUMNS} for it in items]
+    if not rows:
+        # Nothing to write — don't wipe previously saved steps from an earlier run.
+        return
     db = SessionLocal()
     try:
         replace_steps(db, case_id=UUID(str(case_id)), steps=rows)
+        # Also write progress back to the Case row so the dashboard card is accurate.
+        db.execute(
+            update(Case)
+            .where(Case.id == str(case_id))
+            .values(progress=progress)
+        )
+        db.commit()
+    except Exception as exc:
+        print(f"[checklist] _persist failed for case {case_id}: {exc!r}", file=sys.stderr)
+        raise
     finally:
         db.close()
 
 
 def checklist(state: GraphState) -> dict:
+    import sys
     dep_graph = state.get("dependency_graph", {}) or {}
     order = _service_order(dep_graph)
-    steps_by_service = {sid: rules.steps(sid) for sid in order}
+    custom = state.get("custom_steps") or []
+
+    print(
+        f"[checklist] services={order}  custom_steps={len(custom)}"
+        f"  goal={state.get('goal','')[:60]}",
+        file=sys.stderr,
+    )
+
+    steps_by_service = {
+        sid: (custom if sid == "custom_procedure" else rules.steps(sid))
+        for sid in order
+    }
 
     items, progress = compose_checklist(
         dep_graph,
@@ -178,10 +207,12 @@ def checklist(state: GraphState) -> dict:
         steps_by_service,
     )
 
+    print(f"[checklist] composed {len(items)} items  progress={progress}%", file=sys.stderr)
+
     try:
-        _persist(state.get("case_id", ""), items)
+        _persist(state.get("case_id", ""), items, progress)
     except Exception:
-        # Composition is the source of truth for the stream; persistence is best-effort.
+        # Steps are still returned in the SSE stream even if DB write fails.
         pass
 
     next_action = next((it["title"] for it in items if it["status"] == "active"), None)

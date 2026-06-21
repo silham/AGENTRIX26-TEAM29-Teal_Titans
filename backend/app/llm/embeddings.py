@@ -13,7 +13,7 @@ from __future__ import annotations
 from app.config import settings
 
 DIM = 768
-MODEL = "models/text-embedding-004"
+MODEL = "models/text-embedding-2"
 FALLBACK_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 _fallback_model = None  # cached SentenceTransformer instance

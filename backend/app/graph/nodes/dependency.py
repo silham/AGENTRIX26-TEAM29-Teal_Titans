@@ -29,6 +29,7 @@ Writes ``dependency_graph`` into GraphState. Shape::
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from app.graph.nodes.audit import audit
@@ -69,10 +70,95 @@ def _missing_requirements(state: GraphState) -> set[str]:
     return missing
 
 
+def _llm_custom_dependency(
+    goal: str,
+    custom_steps: list[dict],
+    missing: set[str],
+) -> dict[str, Any]:
+    """Use Groq to decide if any custom steps are blocked by missing documents/items.
+
+    Returns a dependency_graph dict in the standard shape.
+    """
+    from app.config import settings
+
+    step_titles = [s.get("title", "") for s in (custom_steps or [])]
+    base_graph: dict[str, Any] = {
+        "services": {
+            "custom_procedure": {
+                "name": (custom_steps[0].get("_service_name", "Custom Procedure") if custom_steps else "Custom Procedure"),
+                "depends_on": [],
+                "status": "ready",
+                "reason": None,
+                "blocked_by": [],
+            }
+        },
+        "order": ["custom_procedure"],
+        "locked": [],
+    }
+
+    if not missing or not settings.groq_api_key:
+        return base_graph
+
+    from app.llm.groq_client import chat
+    sys_prompt = (
+        "You are a dependency checker for Sri Lankan government procedures. "
+        "Given a citizen's goal, procedure steps, and items/documents they are missing, "
+        "decide if ANY of the steps cannot be started without those missing items. "
+        "Respond ONLY with JSON:\n"
+        '{"blocked": true|false, "reason": "<one-line reason or null>"}\n'
+        "- Set blocked=true only when the missing items are a hard prerequisite for the procedure."
+    )
+    missing_list = ", ".join(sorted(missing))
+    steps_summary = "; ".join(step_titles[:6])
+    try:
+        raw = chat(
+            [
+                {"role": "system", "content": sys_prompt},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Goal: {goal}\n"
+                        f"Steps: {steps_summary}\n"
+                        f"Missing: {missing_list}"
+                    ),
+                },
+            ],
+            json_mode=True,
+        )
+        data = json.loads(raw)
+        if data.get("blocked"):
+            reason = str(data.get("reason") or f"Missing required item(s): {missing_list}.")
+            base_graph["services"]["custom_procedure"]["status"] = "locked"
+            base_graph["services"]["custom_procedure"]["reason"] = reason
+            base_graph["locked"] = ["custom_procedure"]
+    except Exception:
+        pass
+
+    return base_graph
+
+
 def dependency(state: GraphState) -> dict:
     services = list(state.get("detected_services") or [])
     satisfied = _satisfied_requirements(state)
     explicit_missing = _missing_requirements(state)
+
+    # For custom goals, delegate dependency analysis to the LLM.
+    if services == ["custom_procedure"]:
+        dependency_graph = _llm_custom_dependency(
+            state.get("goal", ""),
+            state.get("custom_steps") or [],
+            explicit_missing,
+        )
+        svc_node = dependency_graph["services"].get("custom_procedure", {})
+        locked = dependency_graph.get("locked", [])
+        log = audit(
+            state,
+            agent="Dependency",
+            decision=f"custom_procedure: {'locked' if locked else 'ready'}" + (f" — {svc_node.get('reason')}" if locked else ""),
+            reason=svc_node.get("reason"),
+            confidence=0.8,
+        )
+        return {"dependency_graph": dependency_graph, **log}
 
     graph: dict[str, dict[str, Any]] = {}
     extra_prereqs: list[str] = []

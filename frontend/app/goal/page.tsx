@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ChevronLeft, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import { api } from "@/lib/api";
+import { AuthError, api, isAuthenticated } from "@/lib/api";
 import { DEMO_GOALS, LANG_LABELS } from "@/lib/types";
 import type { Language } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -21,9 +21,24 @@ function GoalContent() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
 
+  // Restore pending goal saved before auth redirect, then apply URL param
   useEffect(() => {
+    const pending     = sessionStorage.getItem("helplk_pending_goal");
+    const pendingLang = sessionStorage.getItem("helplk_pending_lang") as Language | null;
+
+    if (pending) {
+      setGoal(pending);
+      sessionStorage.removeItem("helplk_pending_goal");
+    }
+    if (pendingLang && ["en", "si", "ta"].includes(pendingLang)) {
+      setLanguage(pendingLang);
+      sessionStorage.removeItem("helplk_pending_lang");
+    }
+
+    // URL ?q= param takes priority (service shortcuts from landing page)
     const q = params.get("q");
     if (q) setGoal(decodeURIComponent(q));
+
     textareaRef.current?.focus();
   }, [params]);
 
@@ -34,23 +49,30 @@ function GoalContent() {
     el.style.height = `${el.scrollHeight}px`;
   }, [goal]);
 
-  async function ensureToken() {
-    if (!sessionStorage.getItem("helplk_token")) {
-      const res  = await fetch("/api/demo-token", { method: "POST" });
-      const data = await res.json() as { token: string };
-      sessionStorage.setItem("helplk_token", data.token);
-    }
-  }
-
   async function handleStart() {
     if (!goal.trim()) return;
+
+    // Gate on authentication: save goal and send to auth page
+    if (!isAuthenticated()) {
+      sessionStorage.setItem("helplk_pending_goal", goal.trim());
+      sessionStorage.setItem("helplk_pending_lang", language);
+      router.push("/auth?next=/goal");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
-      await ensureToken();
       const case_ = await api.createCase(goal.trim(), language);
       router.push(`/cases/${case_.id}/processing`);
     } catch (err) {
+      if (err instanceof AuthError) {
+        // Token was stale — save goal and go to auth
+        sessionStorage.setItem("helplk_pending_goal", goal.trim());
+        sessionStorage.setItem("helplk_pending_lang", language);
+        router.push("/auth?next=/goal");
+        return;
+      }
       setError(String(err));
       setLoading(false);
     }
@@ -147,7 +169,7 @@ function GoalContent() {
             </button>
           </motion.div>
 
-          <p className="px-1 text-xs text-(--muted-fg)">Press Enter+Ctrl to submit</p>
+          <p className="px-1 text-xs text-(--muted-fg)">Press Ctrl+Enter to submit</p>
 
           {/* Error */}
           <AnimatePresence>

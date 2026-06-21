@@ -11,8 +11,9 @@ class Settings(BaseSettings):
     app_name: str = "HelpLK AI"
     environment: str = "development"
 
-    # Database
-    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/helplk"
+    # Database — defaults to SQLite so demo works without PostgreSQL.
+    # Override with a real Postgres URL in .env for production.
+    database_url: str = "sqlite:///./helplk.db"
 
     # Auth — shared with NextAuth (HS256)
     auth_secret: str = "change-me-shared-with-nextauth"

@@ -168,9 +168,33 @@ def _phrase_questions(fields: list[str], language: str) -> list[str]:
     return templates
 
 
+def _llm_custom_eligibility(_goal: str, _custom_steps: list[dict], _language: str) -> tuple[dict, list[str]]:
+    """Custom procedures have no predefined eligibility rules — always eligible."""
+    return {
+        "overall": "eligible",
+        "services": {"custom_procedure": {"verdict": "eligible", "blockers": [], "missing_facts": []}},
+    }, []
+
+
 def eligibility(state: GraphState) -> dict:
     detected = state.get("detected_services", []) or []
     facts = dict(state.get("facts", {}) or {})
+
+    # For custom goals, use LLM-based eligibility check instead of empty rules.
+    if detected == ["custom_procedure"]:
+        verdict, questions = _llm_custom_eligibility(
+            state.get("goal", ""),
+            state.get("custom_steps") or [],
+            state.get("language", "en"),
+        )
+        log_update = audit(
+            state,
+            agent="eligibility",
+            decision=f"Eligibility (LLM): {verdict['overall']}",
+            reason="LLM-assessed eligibility for custom procedure",
+            confidence=0.75,
+        )
+        return {"eligibility": verdict, "questions": questions, **log_update}
 
     procedures = load_procedures()
     verdict, missing = evaluate_eligibility(detected, procedures, facts)

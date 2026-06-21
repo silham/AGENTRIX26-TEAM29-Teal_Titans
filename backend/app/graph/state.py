@@ -37,6 +37,10 @@ class GraphState(TypedDict, total=False):
     # Documents (M5)
     documents: list[dict[str, Any]]
 
+    # LLM-generated steps + requirements for goals with no matching procedure JSON (M2)
+    custom_steps: list[dict[str, Any]]
+    custom_requirements: list[str]
+
     # Reminder (M4)
     reminders: list[dict[str, Any]]
 

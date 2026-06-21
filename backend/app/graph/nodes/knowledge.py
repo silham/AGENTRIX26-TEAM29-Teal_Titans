@@ -17,12 +17,17 @@ def knowledge(state: GraphState) -> dict:
     services = state.get("detected_services") or []
     goal = state.get("goal", "")
 
-    # 1) Deterministic requirements from the rules layer (union across services).
+    # 1) Requirements: rules layer for known services; custom_requirements for custom_procedure.
     requirements: list[str] = []
     for service in services:
-        for req in rules.requirements(service):
-            if req not in requirements:
-                requirements.append(req)
+        if service == "custom_procedure":
+            for req in (state.get("custom_requirements") or []):
+                if req not in requirements:
+                    requirements.append(req)
+        else:
+            for req in rules.requirements(service):
+                if req not in requirements:
+                    requirements.append(req)
 
     # 2) Citations: each service's canonical source + retrieved supporting passages.
     citations: list[dict] = []

@@ -45,10 +45,13 @@ async def _ensure_checkpointer():
             # psycopg3 needs a plain postgresql:// URL (not SQLAlchemy-prefixed)
             db_url = settings.database_url.replace("postgresql+psycopg://", "postgresql://")
             cm = AsyncPostgresSaver.from_conn_string(db_url)
-            checkpointer = await cm.__aenter__()
-            await checkpointer.setup()
+            # 5-second timeout so a hanging SSL handshake (e.g. channel_binding mismatch)
+            # doesn't block the entire first /run request.
+            checkpointer = await asyncio.wait_for(cm.__aenter__(), timeout=5.0)
+            await asyncio.wait_for(checkpointer.setup(), timeout=5.0)
             _checkpointer = checkpointer
-        except Exception:
+        except Exception as exc:
+            print(f"[runner] checkpointer init failed ({exc!r}); running without persistence")
             _checkpointer = None
     return _checkpointer
 
