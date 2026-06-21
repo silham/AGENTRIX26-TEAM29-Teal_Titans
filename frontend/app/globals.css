@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* ── Design tokens ──────────────────────────────────────────────────── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface:    var(--surface);
+  --color-border:     var(--border);
+  --color-primary:    var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-muted-fg:   var(--muted-fg);
+  --color-success:    var(--success);
+  --color-warning:    var(--warning);
+  --color-danger:     var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ── Light theme (government / citizen-friendly) ──────────────────── */
+:root {
+  --background:    #EEF2FF;
+  --surface:       #FFFFFF;
+  --border:        #E2E8F0;
+  --primary:       #1D4ED8;
+  --primary-dark:  #1E40AF;
+  --primary-light: #EFF6FF;
+  --primary-fg:    #FFFFFF;
+  --foreground:    #0F172A;
+  --muted-fg:      #64748B;
+  --success:       #16A34A;
+  --success-light: #DCFCE7;
+  --warning:       #D97706;
+  --warning-light: #FEF9C3;
+  --danger:        #DC2626;
+  --danger-light:  #FEE2E2;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+  line-height: 1.6;
+}
+
+/* Leave room for bottom nav on mobile */
+@media (max-width: 767px) {
+  body { padding-bottom: 72px; }
+}
+
+/* ── Step connector line ─────────────────────────────────────────────── */
+.step-line {
+  width: 2px;
+  flex-shrink: 0;
+  background: var(--border);
+}
+
+/* ── Accessible focus ring ───────────────────────────────────────────── */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }

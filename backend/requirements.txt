@@ -21,6 +21,7 @@ langgraph-checkpoint-postgres==2.0.9
 # --- RAG (M3) ---
 llama-index==0.12.10
 llama-index-vector-stores-postgres==0.4.1
+sentence-transformers==3.3.1  # local embedding fallback (zero-quota)
 
 # --- LLMs (M2/M3/M5) — free tiers ---
 groq==0.15.0

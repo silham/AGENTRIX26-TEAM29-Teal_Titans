@@ -1,0 +1,57 @@
+{
+  "id": "driving_license_renewal",
+  "name": "Driving Licence Renewal",
+  "office": "Department of Motor Traffic (RMV)",
+  "requirements": [
+    "valid_nic",
+    "current_driving_license",
+    "medical_certificate",
+    "application_form",
+    "application_fee"
+  ],
+  "depends_on": ["duplicate_nic"],
+  "dependency_conditions": [
+    {
+      "service": "duplicate_nic",
+      "when_missing": "valid_nic",
+      "reason": "A valid National Identity Card is required to renew a driving licence. If your NIC is lost, complete the duplicate NIC process first."
+    }
+  ],
+  "eligibility_rules": [
+    { "field": "citizenship", "equals": "sri_lankan" },
+    { "field": "age", "min": 18 }
+  ],
+  "steps": [
+    {
+      "title": "Check your driving licence expiry date",
+      "description": "Confirm the expiry date so you renew within the permitted window and avoid penalties.",
+      "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
+    },
+    {
+      "title": "Obtain a medical fitness certificate",
+      "description": "Get a medical certificate of fitness to drive from the National Transport Medical Institute (NTMI) or an authorised medical officer.",
+      "source_url": "http://www.ntmi.lk/"
+    },
+    {
+      "title": "Prepare your NIC",
+      "description": "Bring your valid National Identity Card for identity verification.",
+      "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
+    },
+    {
+      "title": "Fill the renewal application form",
+      "description": "Complete the driving licence renewal application with current details.",
+      "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
+    },
+    {
+      "title": "Visit the RMV / authorised centre and pay the fee",
+      "description": "Submit your application with the medical certificate and NIC at the Department of Motor Traffic or an authorised centre, and pay the renewal fee.",
+      "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
+    },
+    {
+      "title": "Track your renewal status",
+      "description": "Track issuance and collect the renewed driving licence.",
+      "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
+    }
+  ],
+  "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
+}

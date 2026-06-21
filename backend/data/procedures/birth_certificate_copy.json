@@ -1,0 +1,52 @@
+{
+  "id": "birth_certificate_copy",
+  "name": "Birth Certificate (Certified Copy)",
+  "office": "Divisional Secretariat / Registrar General's Department",
+  "requirements": [
+    "applicant_nic",
+    "original_birth_entry_number",
+    "application_fee"
+  ],
+  "depends_on": [],
+  "dependency_conditions": [],
+  "eligibility_rules": [],
+  "steps": [
+    {
+      "title": "Locate the birth registration details",
+      "description": "Find the birth entry number and the Divisional Secretariat where the birth was registered. This information is on the original birth certificate or known to the family.",
+      "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
+      "fulfills": null
+    },
+    {
+      "title": "Prepare your National Identity Card (NIC)",
+      "description": "Bring your valid NIC as proof of identity when applying for the certified copy.",
+      "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
+      "fulfills": "applicant_nic"
+    },
+    {
+      "title": "Fill the application form (RG Form 2)",
+      "description": "Complete the application form for a certified copy of birth certificate. State the full name, date of birth, and registration district.",
+      "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
+      "fulfills": null
+    },
+    {
+      "title": "Visit the correct Divisional Secretariat",
+      "description": "Go to the Divisional Secretariat or Registrar General's Department branch where the birth was originally registered. Different districts have different offices.",
+      "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
+      "fulfills": null
+    },
+    {
+      "title": "Submit application and pay the fee",
+      "description": "Submit the completed application form with your NIC. Pay the applicable fee for an ordinary or urgent certified copy.",
+      "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
+      "fulfills": "application_fee"
+    },
+    {
+      "title": "Collect the certified copy",
+      "description": "Return on the specified date to collect your certified copy of the birth certificate. Urgent copies may be issued the same day for an additional fee.",
+      "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
+      "fulfills": null
+    }
+  ],
+  "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en"
+}
