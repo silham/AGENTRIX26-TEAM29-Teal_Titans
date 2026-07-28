@@ -59,7 +59,21 @@ async def upload_document(
     """
     Upload a document image, run Gemini Vision verification (with Tesseract fallback),
     persist the result, and return a verdict with issues list.
+
+    Upserts by (case, name): when the case already has a matching required
+    document (usually a 'missing' placeholder from the checklist agent), that
+    row is updated instead of creating a duplicate.
     """
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="case_id is not a valid UUID.")
+
+    # Ownership: the case must belong to the requesting user.
+    from app.repositories.cases import get_case
+    if get_case(db, case_id=case_uuid, user_id=user.id) is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+
     # Read bytes
     image_bytes = await file.read()
     if not image_bytes:
@@ -107,21 +121,26 @@ async def upload_document(
     else:
         status = DocumentStatus.INCOMPLETE
 
-    # 4. Persist to DB
-    try:
-        case_uuid = uuid.UUID(case_id)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="case_id is not a valid UUID.")
-
-    doc = doc_repo.create_document(
-        db,
-        case_id=case_uuid,
-        name=expected_name,
-        doc_type=detected_type.value,
-        storage_path=storage_path,
-        status=status.value,
-        issues=issues,
-    )
+    # 4. Persist to DB — update the existing required-document row when present.
+    existing = doc_repo.find_by_name(db, case_id=case_uuid, name=expected_name)
+    if existing is not None:
+        doc = doc_repo.update_status(
+            db,
+            document_id=existing.id,
+            status=status.value,
+            issues=issues,
+            storage_path=storage_path,
+        )
+    else:
+        doc = doc_repo.create_document(
+            db,
+            case_id=case_uuid,
+            name=expected_name,
+            doc_type=detected_type.value,
+            storage_path=storage_path,
+            status=status.value,
+            issues=issues,
+        )
 
     # 5. Generate signed URL for accepted docs
     signed_url: str | None = None

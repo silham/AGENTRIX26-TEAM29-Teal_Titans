@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -108,10 +109,11 @@ class Message(Base):
 
 
 class DocChunk(Base):
-    """RAG corpus chunk (M3 writes via ingestion).
+    """RAG corpus chunk (written via ingestion).
 
-    Embedding stored as Text (JSON-serialised float list) so the model works
-    with SQLite. On a real Postgres+pgvector deployment replace with Vector(EMBED_DIM).
+    Embedding is a real pgvector column on Postgres (enables cosine_distance
+    search in retriever.py); on SQLite it degrades to Text and the retriever
+    returns [] gracefully.
     """
 
     __tablename__ = "doc_chunks"
@@ -120,6 +122,4 @@ class DocChunk(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     content: Mapped[str] = mapped_column(Text)
-    # Stored as nullable Text; pgvector cosine_distance not available on SQLite —
-    # retriever.py already handles AttributeError gracefully (returns []).
-    embedding: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding = mapped_column(Vector(EMBED_DIM).with_variant(Text, "sqlite"), nullable=True)

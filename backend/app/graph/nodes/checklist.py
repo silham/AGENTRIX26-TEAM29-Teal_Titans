@@ -77,7 +77,11 @@ def _is_locked(svc: dict, elig_service: dict) -> tuple[bool, str | None]:
         return True, svc.get("reason") or "Blocked by a prerequisite step."
     if (elig_service or {}).get("verdict") == "blocked":
         blockers = (elig_service or {}).get("blockers") or []
-        return True, blockers[0]["reason"] if blockers else "Not eligible for this service."
+        reason = blockers[0]["reason"] if blockers else "Not eligible for this service."
+        alt = (elig_service or {}).get("alternative")
+        if alt:
+            reason = f"{reason} Alternative: {alt}"
+        return True, reason
     return False, None
 
 
@@ -183,6 +187,88 @@ def _persist(case_id: str, items: list[dict], progress: int) -> None:
         db.close()
 
 
+# Human-readable names for common requirement keys (fallback: title-cased key).
+_REQ_NAMES = {
+    "valid_nic": "National Identity Card (NIC)",
+    "birth_certificate": "Birth Certificate",
+    "passport_photos": "Passport Photographs",
+    "police_report": "Police Report",
+    "application_form_k35a": "Passport Application Form (K-35-A)",
+    "gn_certified_application": "Grama Niladhari Certified Application",
+    "medical_certificate": "Medical Certificate",
+    "marriage_certificate": "Marriage Certificate",
+    "current_license": "Current Driving Licence",
+}
+
+# Requirement keys that aren't uploadable documents.
+_NON_DOCUMENT_HINTS = ("fee", "payment", "charge")
+
+
+def _requirement_name(key: str) -> str:
+    return _REQ_NAMES.get(key, key.replace("_", " ").title())
+
+
+def _sync_documents(case_id: str, requirements: list[str], custom_requirements: list[str]) -> None:
+    """Persist the case's REQUIRED documents (status 'missing') so the UI shows
+    only documents relevant to this specific case.
+
+    Upsert semantics: rows for requirements no longer relevant are removed only
+    if still 'missing' (uploaded files are never deleted here); existing rows
+    keep their verification status across re-runs.
+    """
+    if not case_id:
+        return
+    import sys
+
+    from app.db.session import SessionLocal
+    from app.repositories import documents as doc_repo
+
+    def _norm(key: str) -> str:
+        return "_".join(str(key).strip().lower().split())
+
+    wanted: dict[str, str] = {}  # normalized type-key -> display name
+    for key in requirements or []:
+        k = _norm(key)
+        if not k or any(h in k for h in _NON_DOCUMENT_HINTS):
+            continue
+        wanted[k] = _requirement_name(k)
+    for name in custom_requirements or []:
+        label = str(name).strip()
+        k = _norm(label)
+        if not k or any(h in k for h in _NON_DOCUMENT_HINTS):
+            continue
+        wanted.setdefault(k, label)
+
+    db = SessionLocal()
+    try:
+        existing = doc_repo.list_documents(db, case_id=case_id)
+
+        # Collapse duplicates sharing a normalized key (prefer non-missing rows).
+        kept: dict[str, object] = {}
+        for d in existing:
+            k = _norm(d.type or d.name)
+            prev = kept.get(k)
+            if prev is None:
+                kept[k] = d
+            elif d.status == "missing":
+                db.delete(d)
+            elif getattr(prev, "status", None) == "missing":
+                db.delete(prev)
+                kept[k] = d
+
+        for key, name in wanted.items():
+            if key not in kept:
+                doc_repo.create_document(db, case_id=case_id, name=name, doc_type=key)
+        for k, d in kept.items():
+            if getattr(d, "status", None) == "missing" and k not in wanted:
+                db.delete(d)
+        db.commit()
+    except Exception as exc:
+        print(f"[checklist] _sync_documents failed for case {case_id}: {exc!r}", file=sys.stderr)
+    finally:
+        db.close()
+
+
 def checklist(state: GraphState) -> dict:
     import sys
     dep_graph = state.get("dependency_graph", {}) or {}
@@ -214,6 +300,12 @@ def checklist(state: GraphState) -> dict:
     except Exception:
         # Steps are still returned in the SSE stream even if DB write fails.
         pass
+
+    _sync_documents(
+        str(state.get("case_id", "")),
+        state.get("requirements") or [],
+        state.get("custom_requirements") or [],
+    )
 
     next_action = next((it["title"] for it in items if it["status"] == "active"), None)
     log_update = audit(

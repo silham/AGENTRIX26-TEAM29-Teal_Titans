@@ -35,6 +35,7 @@ export interface Case {
   created_at: string;
   updated_at: string;
   steps: Step[];
+  documents?: Document[];
 }
 
 export interface AgentLog {
@@ -47,13 +48,21 @@ export interface AgentLog {
 
 // ── SSE event shape (mirrors backend/app/schemas/run.py) ─────────────────
 
-export type AgentStatus = "started" | "completed" | "error";
+export type AgentStatus = "started" | "completed" | "error" | "paused";
 
 export interface RunEvent {
   agent: string;
   status: AgentStatus;
   message?: string;
   payload?: Record<string, unknown>;
+}
+
+// Structured eligibility question (payload of the "paused" system event)
+export interface QuestionField {
+  field: string;
+  question: string;
+  type: "choice" | "boolean" | "number" | "text";
+  options?: { value: string; label: string }[];
 }
 
 // ── UI state ──────────────────────────────────────────────────────────────

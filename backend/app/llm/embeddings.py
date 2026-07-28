@@ -1,6 +1,7 @@
-"""Owner: M3. Gemini text-embedding-004 (free) with a local fallback.
+"""Gemini embeddings (free) with a local fallback.
 
-Primary path: Gemini ``text-embedding-004`` (768-dim, free tier).
+Primary path: Gemini ``gemini-embedding-001`` requested at 768 dims
+(``text-embedding-004`` was retired by Google).
 Fallback path: ``sentence-transformers`` running locally so the demo never blocks
 on quota / missing API key. The local model's native dimension is normalised to
 ``DIM`` (768) by deterministic padding/truncation, so the pgvector column always
@@ -13,7 +14,7 @@ from __future__ import annotations
 from app.config import settings
 
 DIM = 768
-MODEL = "models/text-embedding-2"
+MODEL = "models/gemini-embedding-001"
 FALLBACK_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 _fallback_model = None  # cached SentenceTransformer instance
@@ -32,7 +33,7 @@ def _embed_gemini(texts: list[str]) -> list[list[float]]:
     genai.configure(api_key=settings.gemini_api_key)
     out: list[list[float]] = []
     for t in texts:
-        resp = genai.embed_content(model=MODEL, content=t)
+        resp = genai.embed_content(model=MODEL, content=t, output_dimensionality=DIM)
         out.append(_fit_dim(resp["embedding"]))
     return out
 

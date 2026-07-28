@@ -68,7 +68,13 @@ def extract_text(image_bytes: bytes) -> str:
     except Exception as exc:
         raise RuntimeError(f"Could not open image for OCR: {exc}") from exc
 
-    processed = _preprocess_image(image)
+    try:
+        processed = _preprocess_image(image)
+    except Exception as exc:
+        # Preprocessing is best-effort; a format PIL can open but not enhance
+        # should still get a raw-OCR attempt rather than fail outright.
+        logger.warning("Image preprocessing failed (%s); using raw image.", exc)
+        processed = image
 
     try:
         text = pytesseract.image_to_string(processed, lang=_TESSERACT_LANG, config="--psm 6")

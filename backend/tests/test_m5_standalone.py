@@ -104,17 +104,29 @@ class TestDocumentSchemas:
 
 
 class TestGeminiVision:
-    """Tests for gemini_vision.py with Gemini API mocked out."""
+    """Tests for gemini_vision.py with the google.generativeai SDK mocked.
+
+    analyze_document imports `google.generativeai` lazily and reads the key
+    from pydantic settings (not os.environ), so tests patch the SDK module
+    attributes and `settings.gemini_api_key` directly.
+    """
 
     def _make_mock_response(self, payload: dict) -> MagicMock:
         mock_resp = MagicMock()
         mock_resp.text = json.dumps(payload)
         return mock_resp
 
-    @patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"})
-    @patch("app.llm.gemini_vision.genai.GenerativeModel")
+    def _install_mock_model(self, monkeypatch, mock_model) -> None:
+        import google.generativeai as genai
+
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "gemini_api_key", "test-key")
+        monkeypatch.setattr(genai, "configure", lambda **kw: None)
+        monkeypatch.setattr(genai, "GenerativeModel", lambda *a, **kw: mock_model)
+
     @pytest.mark.asyncio
-    async def test_analyze_document_accepted(self, mock_model_cls):
+    async def test_analyze_document_accepted(self, monkeypatch):
         from app.llm.gemini_vision import analyze_document
         from app.schemas.document import DocumentType
 
@@ -127,7 +139,7 @@ class TestGeminiVision:
         }
         mock_model = MagicMock()
         mock_model.generate_content.return_value = self._make_mock_response(payload)
-        mock_model_cls.return_value = mock_model
+        self._install_mock_model(monkeypatch, mock_model)
 
         result = await analyze_document(b"fake-image-bytes", expected_name="NIC")
 
@@ -135,10 +147,8 @@ class TestGeminiVision:
         assert result.issues == []
         assert result.confidence == 0.96
 
-    @patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"})
-    @patch("app.llm.gemini_vision.genai.GenerativeModel")
     @pytest.mark.asyncio
-    async def test_analyze_document_rejected_blurry(self, mock_model_cls):
+    async def test_analyze_document_rejected_blurry(self, monkeypatch):
         from app.llm.gemini_vision import analyze_document
 
         payload = {
@@ -150,7 +160,7 @@ class TestGeminiVision:
         }
         mock_model = MagicMock()
         mock_model.generate_content.return_value = self._make_mock_response(payload)
-        mock_model_cls.return_value = mock_model
+        self._install_mock_model(monkeypatch, mock_model)
 
         result = await analyze_document(b"blurry-bytes", expected_name="Passport")
 
@@ -158,10 +168,8 @@ class TestGeminiVision:
         assert "blurry" in result.issues[0].lower()
         assert result.confidence == 0.30
 
-    @patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"})
-    @patch("app.llm.gemini_vision.genai.GenerativeModel")
     @pytest.mark.asyncio
-    async def test_analyze_document_handles_malformed_json(self, mock_model_cls):
+    async def test_analyze_document_handles_malformed_json(self, monkeypatch):
         """If Gemini returns non-JSON, we should get a safe fallback result."""
         from app.llm.gemini_vision import analyze_document
         from app.schemas.document import DocumentType
@@ -170,32 +178,32 @@ class TestGeminiVision:
         mock_resp.text = "Sorry, I cannot analyse this image."
         mock_model = MagicMock()
         mock_model.generate_content.return_value = mock_resp
-        mock_model_cls.return_value = mock_model
+        self._install_mock_model(monkeypatch, mock_model)
 
         result = await analyze_document(b"bytes", expected_name="NIC")
 
         assert result.detected_type == DocumentType.UNKNOWN
         assert len(result.issues) > 0
 
-    @patch.dict("os.environ", {}, clear=True)
     @pytest.mark.asyncio
-    async def test_analyze_document_raises_when_no_api_key(self):
+    async def test_analyze_document_raises_when_no_api_key(self, monkeypatch):
+        from app.config import settings
         from app.llm.gemini_vision import GeminiVisionError, analyze_document
+
+        monkeypatch.setattr(settings, "gemini_api_key", "")
 
         with pytest.raises(GeminiVisionError, match="GEMINI_API_KEY"):
             await analyze_document(b"bytes", expected_name="NIC")
 
-    @patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"})
-    @patch("app.llm.gemini_vision.genai.GenerativeModel")
     @pytest.mark.asyncio
-    async def test_analyze_document_quota_exceeded(self, mock_model_cls):
+    async def test_analyze_document_quota_exceeded(self, monkeypatch):
         from google.api_core.exceptions import ResourceExhausted
 
         from app.llm.gemini_vision import GeminiQuotaExceeded, analyze_document
 
         mock_model = MagicMock()
         mock_model.generate_content.side_effect = ResourceExhausted("quota exceeded")
-        mock_model_cls.return_value = mock_model
+        self._install_mock_model(monkeypatch, mock_model)
 
         with pytest.raises(GeminiQuotaExceeded):
             await analyze_document(b"bytes", expected_name="NIC")
@@ -282,12 +290,8 @@ class TestOCR:
 
 
 class TestStorage:
-    """Tests for storage.py with Supabase SDK mocked."""
+    """Tests for storage.py (local-filesystem backend, isolated via tmp_path)."""
 
-    @patch.dict(
-        "os.environ",
-        {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_SERVICE_KEY": "test-key"},
-    )
     def test_build_storage_path_structure(self):
         from app.documents.storage import build_storage_path
 
@@ -301,10 +305,6 @@ class TestStorage:
         # Spaces should be replaced with underscores
         assert " " not in path
 
-    @patch.dict(
-        "os.environ",
-        {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_SERVICE_KEY": "test-key"},
-    )
     def test_build_storage_path_unique(self):
         from app.documents.storage import build_storage_path
 
@@ -313,72 +313,51 @@ class TestStorage:
 
         assert path1 != path2  # UUID prefix ensures uniqueness
 
-    @patch("app.documents.storage._get_client")
-    @patch.dict(
-        "os.environ",
-        {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_SERVICE_KEY": "test-key"},
-    )
     @pytest.mark.asyncio
-    async def test_upload_file_returns_path(self, mock_get_client):
+    async def test_upload_file_returns_path(self, monkeypatch, tmp_path):
+        from app.config import settings
         from app.documents.storage import upload_file
 
-        mock_client = MagicMock()
-        mock_client.storage.from_().upload.return_value = MagicMock()
-        mock_get_client.return_value = mock_client
+        monkeypatch.setattr(settings, "storage_dir", str(tmp_path))
 
         path = await upload_file(b"image-bytes", "nic.jpg", "user-1", "case-1")
 
-        assert "user-1" in path
-        assert "case-1" in path
-        mock_client.storage.from_().upload.assert_called_once()
+        assert path.startswith("user-1/case-1/")
+        assert (tmp_path / path).read_bytes() == b"image-bytes"
 
-    @patch("app.documents.storage._get_client")
-    @patch.dict(
-        "os.environ",
-        {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_SERVICE_KEY": "test-key"},
-    )
     @pytest.mark.asyncio
-    async def test_get_signed_url(self, mock_get_client):
-        from app.documents.storage import get_signed_url
+    async def test_get_signed_url(self, monkeypatch, tmp_path):
+        from app.config import settings
+        from app.documents.storage import get_signed_url, upload_file
 
-        mock_client = MagicMock()
-        mock_client.storage.from_().create_signed_url.return_value = {
-            "signedURL": "https://supabase.co/signed?token=abc"
-        }
-        mock_get_client.return_value = mock_client
+        monkeypatch.setattr(settings, "storage_dir", str(tmp_path))
+        path = await upload_file(b"image-bytes", "nic.jpg", "user-1", "case-1")
 
-        url = await get_signed_url("user-1/case-1/abc_nic.jpg")
+        url = await get_signed_url(path)
 
-        assert url.startswith("https://")
-        assert "signed" in url
+        # Local backend serves file:// URLs; production swaps in Supabase signed URLs.
+        assert url.startswith("file://")
+        assert path.split("/")[-1] in url
 
-    @patch("app.documents.storage._get_client")
-    @patch.dict(
-        "os.environ",
-        {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_SERVICE_KEY": "test-key"},
-    )
     @pytest.mark.asyncio
-    async def test_delete_file_calls_remove(self, mock_get_client):
-        from app.documents.storage import delete_file
+    async def test_delete_file_removes_from_disk(self, monkeypatch, tmp_path):
+        from app.config import settings
+        from app.documents.storage import delete_file, upload_file
 
-        mock_client = MagicMock()
-        mock_client.storage.from_().remove.return_value = MagicMock()
-        mock_get_client.return_value = mock_client
+        monkeypatch.setattr(settings, "storage_dir", str(tmp_path))
+        path = await upload_file(b"image-bytes", "nic.jpg", "user-1", "case-1")
+        assert (tmp_path / path).exists()
 
-        await delete_file("user-1/case-1/abc_nic.jpg")
+        await delete_file(path)
 
-        mock_client.storage.from_().remove.assert_called_once_with(
-            ["user-1/case-1/abc_nic.jpg"]
-        )
+        assert not (tmp_path / path).exists()
 
-    @patch.dict("os.environ", {}, clear=True)
     @pytest.mark.asyncio
-    async def test_upload_raises_when_no_config(self):
-        import app.documents.storage as storage_module
+    async def test_get_signed_url_missing_file_raises(self, monkeypatch, tmp_path):
+        from app.config import settings
+        from app.documents.storage import StorageSignedUrlError, get_signed_url
 
-        storage_module._supabase_client = None  # reset singleton
+        monkeypatch.setattr(settings, "storage_dir", str(tmp_path))
 
-        from app.documents.storage import StorageConfigError, upload_file
-
-        with pytest.raises(StorageConfigError):
-            await upload_file(b"bytes", "nic.jpg", "user-1", "case-1")
+        with pytest.raises(StorageSignedUrlError):
+            await get_signed_url("user-1/case-1/does_not_exist.jpg")

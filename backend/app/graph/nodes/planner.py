@@ -40,14 +40,25 @@ Requirement keys: valid_nic, birth_certificate, passport, driving_license, polic
 marriage_certificate, business_registration_certificate.
 
 Rules:
+- Include a service ONLY if the citizen's goal actually requires that exact service.
+  Do NOT force-fit the goal into loosely related services.
+- The detected services must TOGETHER fully accomplish the citizen's goal. If any
+  part of the goal (e.g. citizenship for a foreign spouse, adoption, land
+  registration, visas, pensions) is not covered by a known service ID, return an
+  empty "detected_services" list instead — a custom plan covering the whole goal
+  will be generated, and prerequisites like a lost NIC are still handled from the
+  "lost"/"missing" facts you report.
 - If the citizen says they LOST their NIC/identity card, add "valid_nic" to "lost" AND
   "missing", and include "duplicate_nic" in detected_services BEFORE passport_application.
 - If the citizen says they HAVE a document, add its key to "have".
-- If a service requires an NIC and the citizen has not confirmed they have one, add
-  "valid_nic" to "missing".
+- Include passport_application only when the citizen wants a passport/travel document
+  for themselves. If it is included and the citizen has not confirmed they have an NIC,
+  add "valid_nic" to "missing".
 - Always list prerequisite services BEFORE the services that depend on them.
 - "lost" means the citizen explicitly said something is lost/stolen/destroyed.
-- "missing" means the citizen doesn't have it (whether lost or never had).
+- "missing" means the citizen SAID they don't have it (whether lost or never had).
+- Do NOT add anything to "missing" or "lost" just because the procedure will
+  probably require it — only include what the citizen's own words establish.
 
 Known service IDs: passport_application, duplicate_nic, driving_license_renewal,
 birth_certificate_copy, marriage_registration, business_registration,
@@ -206,10 +217,15 @@ def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
 
 
 def planner(state: GraphState) -> dict:
+    import sys
+
     goal = state.get("goal", "")
     result: dict = {}
     custom_steps: list[dict] = []
     custom_requirements: list[str] = []
+    groq_detected = False       # True only when Groq itself produced the services
+    groq_said_none = False      # Groq deliberately answered "no known service fits"
+    groq_intent: dict | None = None  # Groq's have/missing/lost facts, kept across fallbacks
 
     # ── Try Groq for service detection ───────────────────────────────────────
     if settings.groq_api_key:
@@ -223,20 +239,37 @@ def planner(state: GraphState) -> dict:
                 json_mode=True,
             )
             parsed = json.loads(raw)
-            # Keep only known IDs that also have a rules JSON file with actual steps.
-            # Services without steps (no JSON file yet) are treated as unrecognised so
-            # the goal falls through to the custom Groq plan generator.
             raw_services = parsed.get("detected_services") or []
             valid = [s for s in raw_services if rules.steps(s)]
-            if valid:
+            # Accept the rules-based plan only when EVERY detected service has a
+            # rules JSON with steps. If Groq needed a service we can't model
+            # (e.g. marriage_registration), a partial rules plan would answer the
+            # wrong question — fall through to the custom Groq plan generator,
+            # which sees the whole goal. Keep Groq's intent either way: the
+            # have/missing/lost facts stay useful downstream.
+            groq_intent = parsed.get("intent")
+            groq_said_none = not raw_services
+            if valid and len(valid) == len(raw_services):
                 parsed["detected_services"] = valid
                 result = parsed
-        except Exception:
+                groq_detected = True
+            elif raw_services:
+                print(
+                    f"[planner] Groq services {raw_services} not fully covered by rules; "
+                    "falling back to custom plan",
+                    file=sys.stderr,
+                )
+        except Exception as exc:
+            print(f"[planner] Groq service detection failed: {exc!r}", file=sys.stderr)
             result = {}
 
     # ── Keyword fallback when Groq failed or produced no valid services ───────
-    if not result.get("detected_services"):
+    # Skipped when Groq deliberately said "no known service fits": a keyword hit
+    # would resurrect a partial plan for a goal that needs a custom one.
+    if not result.get("detected_services") and not groq_said_none:
         result = _keyword_plan(goal)
+        if groq_intent:
+            result["intent"] = groq_intent
 
     # ── Custom Groq-generated plan for goals with no matching service ─────────
     if not result.get("detected_services"):
@@ -244,7 +277,7 @@ def planner(state: GraphState) -> dict:
         if custom_steps:
             result["detected_services"] = ["custom_procedure"]
             if not result.get("intent"):
-                result["intent"] = {
+                result["intent"] = groq_intent or {
                     "primary_goal": goal[:120],
                     "urgency": "medium",
                     "has_blocking_issues": False,
@@ -255,7 +288,7 @@ def planner(state: GraphState) -> dict:
                 }
 
     services = result.get("detected_services", [])
-    confidence = 0.95 if (services and services != ["custom_procedure"] and settings.groq_api_key) \
+    confidence = 0.95 if groq_detected \
         else 0.8 if custom_steps \
         else 0.7
 

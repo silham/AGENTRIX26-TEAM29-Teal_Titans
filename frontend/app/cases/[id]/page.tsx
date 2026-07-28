@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Upload, Loader2, FileText, CheckSquare, Play, RefreshCw,
+  ArrowLeft, Upload, Loader2, FileText, CheckSquare, CheckCircle2, Play, RefreshCw,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import WorkflowStep from "@/components/WorkflowStep";
@@ -16,52 +16,60 @@ import { cn } from "@/lib/cn";
 
 type Tab = "steps" | "documents";
 
-function mockDocs(steps: Step[]): Document[] {
-  const docs: Document[] = [];
-  const hasNIC      = steps.some((s) => /nic|police/i.test(s.title));
-  const hasBirth    = steps.some((s) => /birth/i.test(s.title));
-  const hasPassport = steps.some((s) => /passport/i.test(s.title));
-
-  if (hasNIC)      docs.push({ id: "d1", name: "National Identity Card (NIC)", type: "identity", status: "missing",    issues: [] });
-  if (hasNIC)      docs.push({ id: "d2", name: "Police Report",                type: "report",   status: "missing",    issues: [] });
-  if (hasBirth)    docs.push({ id: "d3", name: "Birth Certificate",            type: "cert",     status: "missing",    issues: [] });
-  if (hasPassport) docs.push({ id: "d4", name: "Passport Application Form",    type: "form",     status: "incomplete", issues: ["Signature missing on page 2", "Date field is empty"] });
-  docs.push({ id: "d5", name: "Passport Photos (2 copies)", type: "photo", status: "needs_verification", issues: [] });
-  return docs;
-}
-
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id }   = use(params);
   const router   = useRouter();
 
   const [case_,    setCase]    = useState<Case | null>(null);
-  const [docs,     setDocs]    = useState<Document[]>([]);
   const [tab,      setTab]     = useState<Tab>("steps");
   const [explain,  setExplain] = useState<Step | null>(null);
   const [loading,  setLoading] = useState(true);
   const [uploadFor, setUploadFor] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [togglingStep, setTogglingStep] = useState<string | null>(null);
   const uploadRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.getCase(id)
-      .then((c) => { setCase(c); setDocs(mockDocs(c.steps)); setLoading(false); })
+      .then((c) => { setCase(c); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !uploadFor) return;
-    setDocs((prev) =>
-      prev.map((d) => d.name === uploadFor ? { ...d, status: "needs_verification" as const } : d),
-    );
-    await api.uploadDocument(id, file).catch(() => {});
+    if (!file) return;
+    setUploading(true);
+    try {
+      await api.uploadDocument(id, file, uploadFor || file.name);
+      // Re-fetch: the backend verified the upload (Gemini Vision / OCR) and
+      // updated the document row — show the real verdict.
+      const updated = await api.getCase(id);
+      setCase(updated);
+    } catch { /* keep current view; user can retry */ }
     e.target.value = "";
     setUploadFor(null);
+    setUploading(false);
   }
 
   function openUpload(name: string) {
     setUploadFor(name);
     uploadRef.current?.click();
+  }
+
+  async function toggleStep(step: Step) {
+    setTogglingStep(step.id);
+    try {
+      const updated = await api.updateStep(
+        id,
+        step.id,
+        step.status === "completed" ? "pending" : "completed",
+      );
+      setCase(updated); // backend returns the recomputed case (locks, progress, active step)
+    } catch {
+      // leave the UI unchanged; the refresh button re-syncs on demand
+    } finally {
+      setTogglingStep(null);
+    }
   }
 
   if (loading) {
@@ -94,6 +102,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   const completedSteps  = case_.steps.filter((s) => s.status === "completed").length;
   const nextStep        = case_.steps.find((s) => s.status === "active" || s.status === "pending");
+  const allDone         = case_.steps.length > 0 &&
+    case_.steps.every((s) => s.status === "completed" || s.status === "skipped");
+  const docs            = case_.documents ?? [];
   const missingDocCount = docs.filter((d) => d.status === "missing").length;
 
   const TABS = [
@@ -160,15 +171,36 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
             {/* Actions */}
             <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => router.push(`/cases/${id}/processing`)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--primary) py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
-              >
-                <Play size={15} /> Resume
-              </button>
+              {case_.steps.length === 0 ? (
+                <button
+                  onClick={() => router.push(`/cases/${id}/processing`)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--primary) py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
+                >
+                  <Play size={15} /> Generate Plan
+                </button>
+              ) : nextStep ? (
+                <button
+                  onClick={() => toggleStep(nextStep)}
+                  disabled={togglingStep !== null}
+                  className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-(--primary) px-3 py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {togglingStep === nextStep.id
+                    ? <Loader2 size={15} className="shrink-0 animate-spin" />
+                    : <CheckCircle2 size={15} className="shrink-0" />}
+                  Complete Step
+                </button>
+              ) : allDone ? (
+                <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--success-light) py-3 text-sm font-bold text-(--success)">
+                  <CheckCircle2 size={15} /> All Steps Done
+                </div>
+              ) : (
+                <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-50 py-3 text-sm font-bold text-orange-700">
+                  ⛔ Not Eligible — see steps below
+                </div>
+              )}
               <button
                 onClick={() => openUpload("")}
-                className="flex items-center gap-2 rounded-xl border border-(--border) bg-white px-4 py-3 text-sm font-medium text-(--foreground) hover:border-(--primary) transition-colors"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-(--border) bg-white px-4 py-3 text-sm font-medium text-(--foreground) hover:border-(--primary) transition-colors"
               >
                 <Upload size={15} /> Upload
               </button>
@@ -240,6 +272,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                         index={i}
                         isLast={i === case_.steps.length - 1}
                         onExplain={setExplain}
+                        onToggle={toggleStep}
+                        busy={togglingStep === step.id}
                       />
                     ))}
                   </div>

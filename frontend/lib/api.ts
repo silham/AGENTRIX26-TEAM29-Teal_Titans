@@ -89,6 +89,13 @@ export const api = {
 
   getCase: (id: string) => request<Case>(`/cases/${id}`),
 
+  // Mark a step done (or undo); backend recomputes locks/progress and returns the case.
+  updateStep: (caseId: string, stepId: string, status: "completed" | "pending") =>
+    request<Case>(`/cases/${caseId}/steps/${stepId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
   deleteCase: (id: string) =>
     fetch(`${BACKEND}/cases/${id}`, {
       method: "DELETE",
@@ -102,6 +109,7 @@ export const api = {
     onDone: () => void,
     onError: (msg: string) => void,
     resume = false,
+    answers?: Record<string, unknown>,
   ) => {
     const url = `${BACKEND}/cases/${caseId}/run${resume ? "?resume=true" : ""}`;
     const ctrl = new AbortController();
@@ -110,7 +118,11 @@ export const api = {
       try {
         const res = await fetch(url, {
           method: "POST",
-          headers: { ...authHeaders() } as Record<string, string>,
+          headers: {
+            ...authHeaders(),
+            ...(answers ? { "Content-Type": "application/json" } : {}),
+          } as Record<string, string>,
+          body: answers ? JSON.stringify({ answers }) : undefined,
           signal: ctrl.signal,
         });
         if (!res.ok) { onError(`${res.status}`); return; }
@@ -144,10 +156,11 @@ export const api = {
   },
 
   // ── Documents ─────────────────────────────────────────────────────────
-  uploadDocument: (caseId: string, file: File) => {
+  uploadDocument: (caseId: string, file: File, expectedName: string) => {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("case_id", caseId);
+    fd.append("expected_name", expectedName);
     return fetch(`${BACKEND}/documents`, {
       method: "POST",
       headers: authHeaders() as Record<string, string>,

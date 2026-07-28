@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function CaseCard({ case_: c, index, onDelete }: Props) {
-  const nextStep   = c.steps.find((s) => s.status === "active" || s.status === "pending");
+  const nextStep   = (c.steps ?? []).find((s) => s.status === "active" || s.status === "pending");
   const isComplete = c.status === "completed";
 
   return (

@@ -18,7 +18,8 @@ from app.schemas.document import DocumentType, VisionAnalysisResult
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-1.5-flash"
+# gemini-1.5-flash was retired by Google; 2.5-flash is the current free-tier vision model.
+MODEL = "gemini-2.5-flash"
 
 # ---------------------------------------------------------------------------
 # Custom exceptions

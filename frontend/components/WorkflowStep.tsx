@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, Lock, Clock, ChevronRight, ExternalLink } from "lucide-react";
+import { CheckCircle2, Lock, Clock, ChevronRight, ExternalLink, Loader2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { Step } from "@/lib/types";
 
@@ -53,9 +53,11 @@ interface Props {
   index: number;
   isLast: boolean;
   onExplain?: (step: Step) => void;
+  onToggle?: (step: Step) => void; // mark done / undo
+  busy?: boolean;                  // this step's update is in flight
 }
 
-export default function WorkflowStep({ step, index, isLast, onExplain }: Props) {
+export default function WorkflowStep({ step, index, isLast, onExplain, onToggle, busy }: Props) {
   const cfg  = STATUS_CFG[step.status];
   const Icon = cfg.Icon;
 
@@ -105,15 +107,35 @@ export default function WorkflowStep({ step, index, isLast, onExplain }: Props) 
           <p className="mt-1.5 text-sm leading-relaxed text-(--muted-fg)">{step.description}</p>
         )}
 
-        {/* Locked reason */}
+        {/* Locked reason (may include an eligibility blocker + alternative path) */}
         {step.status === "locked" && (
           <p className="mt-2 text-sm text-orange-700">
-            ⛔ Finish the earlier steps first, then this will become available.
+            ⛔ {step.reason || "Finish the earlier steps first, then this will become available."}
           </p>
         )}
 
         {/* Footer */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {onToggle && (step.status === "active" || step.status === "pending") && (
+            <button
+              onClick={() => onToggle(step)}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-(--primary) px-3 py-1.5 text-xs font-semibold text-white hover:bg-(--primary-dark) active:scale-95 transition-all disabled:opacity-60"
+            >
+              {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              Mark as done
+            </button>
+          )}
+          {onToggle && step.status === "completed" && (
+            <button
+              onClick={() => onToggle(step)}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-(--border) bg-white px-3 py-1.5 text-xs font-semibold text-(--muted-fg) hover:text-(--foreground) transition-colors disabled:opacity-60"
+            >
+              {busy ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
+              Undo
+            </button>
+          )}
           {step.source_url && (
             <a
               href={step.source_url}
