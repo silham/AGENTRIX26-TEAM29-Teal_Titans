@@ -13,6 +13,7 @@ import RequirementChecklist from "@/components/RequirementChecklist";
 import ExplainPanel from "@/components/ExplainPanel";
 import CitationList from "@/components/CitationList";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { Case, Requirement, Step } from "@/lib/types";
 import { SATISFIED } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -22,6 +23,7 @@ type Tab = "steps" | "requirements";
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id }   = use(params);
   const router   = useRouter();
+  const t        = useT();
 
   const [case_,    setCase]    = useState<Case | null>(null);
   const [tab,      setTab]     = useState<Tab>("steps");
@@ -94,12 +96,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       <div className="flex min-h-dvh flex-col bg-(--background)">
         <Navbar />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
-          <p className="text-(--muted-fg)">This plan was not found.</p>
+          <p className="text-(--muted-fg)">{t("case.notFound")}</p>
           <button
             onClick={() => router.push("/dashboard")}
             className="text-sm font-semibold text-(--primary) underline"
           >
-            Back to My Plans
+            {t("case.back")}
           </button>
         </div>
       </div>
@@ -118,8 +120,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const openReqCount    = requirements.filter((r) => !SATISFIED.has(r.status)).length;
 
   const TABS = [
-    { key: "steps" as Tab,        label: "Your Steps",   Icon: CheckSquare, badge: 0 },
-    { key: "requirements" as Tab, label: "Requirements", Icon: ListChecks,  badge: openReqCount },
+    { key: "steps" as Tab,        label: t("case.tabSteps"),        Icon: CheckSquare, badge: 0 },
+    { key: "requirements" as Tab, label: t("case.tabRequirements"), Icon: ListChecks,  badge: openReqCount },
   ];
 
   return (
@@ -135,7 +137,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             onClick={() => router.push("/dashboard")}
             className="mb-4 flex items-center gap-1.5 text-sm text-(--muted-fg) hover:text-(--foreground) transition-colors"
           >
-            <ArrowLeft size={16} /> Back to My Plans
+            <ArrowLeft size={16} /> {t("case.back")}
           </button>
 
           {/* Case header */}
@@ -146,7 +148,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 ? "bg-(--success-light) text-(--success)"
                 : "bg-(--primary-light) text-(--primary)",
             )}>
-              {case_.status === "completed" ? "Completed" : "In Progress"}
+              {case_.status === "completed" ? t("case.completed") : t("case.inProgress")}
             </span>
 
             {/* This plan exists to obtain one requirement of another plan. */}
@@ -156,7 +158,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-(--muted-fg) hover:text-(--primary) transition-colors"
               >
                 <CornerUpLeft size={12} className="shrink-0" />
-                <span className="line-clamp-1">Part of: {case_.parent.goal}</span>
+                <span className="line-clamp-1">
+                  {t("case.partOf", { goal: case_.parent.goal })}
+                </span>
               </Link>
             )}
 
@@ -166,7 +170,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
             {nextStep && (
               <p className="mt-2 text-sm text-(--muted-fg)">
-                Next step:{" "}
+                {t("case.nextStep")}{" "}
                 <span className="font-semibold text-(--foreground)">{nextStep.title}</span>
               </p>
             )}
@@ -175,7 +179,11 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             <div className="mt-4">
               <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="text-(--muted-fg)">
-                  {completedSteps} of {case_.steps.length} steps done
+                  {t("case.stepsDone", {
+                    count: case_.steps.length,
+                    done: completedSteps,
+                    total: case_.steps.length,
+                  })}
                 </span>
                 <span className="font-bold text-(--primary)">{case_.progress}%</span>
               </div>
@@ -196,7 +204,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   onClick={() => router.push(`/cases/${id}/processing`)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--primary) py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
                 >
-                  <Play size={15} /> Generate Plan
+                  <Play size={15} /> {t("case.generatePlan")}
                 </button>
               ) : nextStep ? (
                 <button
@@ -207,21 +215,22 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   {togglingStep === nextStep.id
                     ? <Loader2 size={15} className="shrink-0 animate-spin" />
                     : <CheckCircle2 size={15} className="shrink-0" />}
-                  Complete Step
+                  {t("case.completeStep")}
                 </button>
               ) : allDone ? (
                 <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--success-light) py-3 text-sm font-bold text-(--success)">
-                  <CheckCircle2 size={15} /> All Steps Done
+                  <CheckCircle2 size={15} /> {t("case.allDone")}
                 </div>
               ) : (
                 <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-50 py-3 text-sm font-bold text-orange-700">
-                  ⛔ Not Eligible — see steps below
+                  {t("case.notEligible")}
                 </div>
               )}
               <button
                 onClick={() => { api.getCase(id).then(setCase).catch(() => {}); }}
                 className="flex items-center justify-center rounded-xl border border-(--border) bg-white px-3 py-3 text-(--muted-fg) hover:text-(--foreground) transition-colors"
-                title="Refresh"
+                title={t("case.refresh")}
+                aria-label={t("case.refresh")}
               >
                 <RefreshCw size={15} />
               </button>
@@ -268,13 +277,13 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="rounded-2xl border border-dashed border-(--border) bg-white p-10 text-center">
                     <CheckSquare size={36} className="mx-auto mb-3 text-(--muted-fg)" />
                     <p className="text-sm text-(--muted-fg)">
-                      No steps yet. Resume to generate your plan.
+                      {t("case.emptySteps")}
                     </p>
                     <button
                       onClick={() => router.push(`/cases/${id}/processing`)}
                       className="mt-4 text-sm font-semibold text-(--primary) underline"
                     >
-                      Generate plan →
+                      {t("case.emptyStepsCta")}
                     </button>
                   </div>
                 ) : (
@@ -313,12 +322,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 {requirements.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-(--border) bg-white p-10 text-center">
                     <ListChecks size={36} className="mx-auto mb-3 text-(--muted-fg)" />
-                    <p className="text-sm text-(--muted-fg)">No requirements identified yet.</p>
+                    <p className="text-sm text-(--muted-fg)">{t("case.emptyRequirements")}</p>
                     <button
                       onClick={() => router.push(`/cases/${id}/processing`)}
                       className="mt-4 text-sm font-semibold text-(--primary) underline"
                     >
-                      Generate plan to see requirements →
+                      {t("case.emptyRequirementsCta")}
                     </button>
                   </div>
                 ) : (
@@ -336,7 +345,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 {subGoals.length > 0 && (
                   <div className="mt-6 border-t border-(--border) pt-5">
                     <p className="mb-3 text-sm font-bold text-(--foreground)">
-                      Plans you started for these
+                      {t("case.subGoalsTitle")}
                     </p>
                     <div className="space-y-2">
                       {subGoals.map((g) => (

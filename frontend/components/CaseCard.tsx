@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, CornerUpLeft, Trash2 } from "lucide-react";
+import { useT } from "@/lib/i18n";
 import type { Case } from "@/lib/types";
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function CaseCard({ case_: c, index, onDelete }: Props) {
+  const t          = useT();
   const nextStep   = (c.steps ?? []).find((s) => s.status === "active" || s.status === "pending");
   const isComplete = c.status === "completed";
 
@@ -30,7 +32,7 @@ export default function CaseCard({ case_: c, index, onDelete }: Props) {
           className="mb-1.5 flex items-center gap-1 text-xs font-medium text-(--muted-fg) hover:text-(--primary) transition-colors"
         >
           <CornerUpLeft size={11} className="shrink-0" />
-          <span className="line-clamp-1">Part of: {c.parent.goal}</span>
+          <span className="line-clamp-1">{t("case.partOf", { goal: c.parent.goal })}</span>
         </Link>
       )}
 
@@ -42,7 +44,9 @@ export default function CaseCard({ case_: c, index, onDelete }: Props) {
       {/* Progress bar */}
       <div className="mt-3">
         <div className="mb-1.5 flex items-center justify-between text-sm">
-          <span className="text-(--muted-fg)">{isComplete ? "Completed" : "In Progress"}</span>
+          <span className="text-(--muted-fg)">
+            {isComplete ? t("case.completed") : t("case.inProgress")}
+          </span>
           <span className="font-bold text-(--primary)">{c.progress}%</span>
         </div>
         <div className="h-2.5 w-full overflow-hidden rounded-full bg-(--surface)">
@@ -62,7 +66,7 @@ export default function CaseCard({ case_: c, index, onDelete }: Props) {
       {/* Next step */}
       {nextStep && (
         <p className="mt-2 text-xs text-(--muted-fg)">
-          Next:{" "}
+          {t("case.next")}{" "}
           <span className="font-semibold text-(--foreground)">{nextStep.title}</span>
         </p>
       )}
@@ -73,13 +77,14 @@ export default function CaseCard({ case_: c, index, onDelete }: Props) {
           href={`/cases/${c.id}`}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--primary) py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
         >
-          {isComplete ? "View" : "Continue"} <ArrowRight size={15} />
+          {isComplete ? t("case.view") : t("case.continue")} <ArrowRight size={15} />
         </Link>
         {onDelete && (
           <button
             onClick={() => onDelete(c.id)}
             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-(--border) text-(--muted-fg) hover:border-red-300 hover:bg-red-50 hover:text-(--danger) transition-colors"
-            title="Delete this plan"
+            title={t("case.delete")}
+            aria-label={t("case.delete")}
           >
             <Trash2 size={17} />
           </button>

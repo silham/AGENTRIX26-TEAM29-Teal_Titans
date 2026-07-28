@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Loader2, LogIn, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { signIn } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 
 type Mode = "signin" | "signup";
@@ -13,6 +14,7 @@ type Mode = "signin" | "signup";
 function AuthContent() {
   const router     = useRouter();
   const params     = useSearchParams();
+  const t          = useT();
 
   const emailRef = useRef<HTMLInputElement>(null);
 
@@ -39,8 +41,8 @@ function AuthContent() {
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!email.trim()) { setError("Please enter your email address."); return; }
-    if (mode === "signup" && !name.trim()) { setError("Please enter your name."); return; }
+    if (!email.trim()) { setError(t("auth.errNoEmail")); return; }
+    if (mode === "signup" && !name.trim()) { setError(t("auth.errNoName")); return; }
 
     setLoading(true);
     setError("");
@@ -48,7 +50,7 @@ function AuthContent() {
       await signIn(email.trim(), mode === "signup" ? name.trim() : undefined);
       redirectAfterAuth();
     } catch {
-      setError("Could not sign in. Please check that the server is running and try again.");
+      setError(t("auth.errSignIn"));
       setLoading(false);
     }
   }
@@ -67,7 +69,7 @@ function AuthContent() {
       );
       redirectAfterAuth();
     } catch {
-      setError("Demo mode unavailable. Please check your connection.");
+      setError(t("auth.errDemo"));
       setLoading(false);
     }
   }
@@ -84,7 +86,7 @@ function AuthContent() {
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-(--primary)">
               <span className="text-xs font-bold text-white">LK</span>
             </div>
-            <span className="text-base font-bold text-(--foreground)">HelpLK</span>
+            <span className="text-base font-bold text-(--foreground)">{t("nav.brand")}</span>
           </Link>
         </div>
       </header>
@@ -102,13 +104,13 @@ function AuthContent() {
                 className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3.5"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-500 mb-1">
-                  Your request
+                  {t("auth.yourRequest")}
                 </p>
                 <p className="text-sm font-medium leading-snug text-(--foreground) line-clamp-2">
                   &ldquo;{pendingGoal}&rdquo;
                 </p>
                 <p className="mt-1.5 text-xs text-blue-500">
-                  Sign in to save your progress and start your plan.
+                  {t("auth.signInToSave")}
                 </p>
               </motion.div>
             )}
@@ -121,12 +123,10 @@ function AuthContent() {
             className="mb-6"
           >
             <h1 className="text-2xl font-extrabold text-(--foreground)">
-              {isSignup ? "Create your account" : "Welcome back"}
+              {isSignup ? t("auth.headingSignup") : t("auth.headingSignin")}
             </h1>
             <p className="mt-1 text-sm text-(--muted-fg)">
-              {isSignup
-                ? "Save your plan and track your government service progress."
-                : "Sign in to continue where you left off."}
+              {isSignup ? t("auth.subSignup") : t("auth.subSignin")}
             </p>
           </motion.div>
 
@@ -144,7 +144,7 @@ function AuthContent() {
                 )}
               >
                 {m === "signin" ? <LogIn size={15} /> : <UserPlus size={15} />}
-                {m === "signin" ? "Sign In" : "Create Account"}
+                {m === "signin" ? t("auth.signIn") : t("auth.createAccount")}
               </button>
             ))}
           </div>
@@ -169,13 +169,13 @@ function AuthContent() {
                   className="overflow-hidden"
                 >
                   <label className="mb-1.5 block text-sm font-semibold text-(--foreground)">
-                    Full Name
+                    {t("auth.fullName")}
                   </label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Your full name"
+                    placeholder={t("auth.fullNamePlaceholder")}
                     autoComplete="name"
                     className="w-full rounded-xl border border-(--border) bg-white px-4 py-3 text-sm text-(--foreground) placeholder:text-(--muted-fg) focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20 transition-all"
                   />
@@ -186,14 +186,14 @@ function AuthContent() {
             {/* Email */}
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-(--foreground)">
-                Email Address
+                {t("auth.email")}
               </label>
               <input
                 ref={emailRef}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={t("auth.emailPlaceholder")}
                 autoComplete="email"
                 required
                 className="w-full rounded-xl border border-(--border) bg-white px-4 py-3 text-sm text-(--foreground) placeholder:text-(--muted-fg) focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20 transition-all"
@@ -203,14 +203,14 @@ function AuthContent() {
             {/* Password */}
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-(--foreground)">
-                Password
+                {t("auth.password")}
               </label>
               <div className="relative">
                 <input
                   type={showPwd ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={isSignup ? "Create a password" : "Your password"}
+                  placeholder={isSignup ? t("auth.passwordCreate") : t("auth.passwordEnter")}
                   autoComplete={isSignup ? "new-password" : "current-password"}
                   className="w-full rounded-xl border border-(--border) bg-white px-4 py-3 pr-11 text-sm text-(--foreground) placeholder:text-(--muted-fg) focus:border-(--primary) focus:outline-none focus:ring-2 focus:ring-(--primary)/20 transition-all"
                 />
@@ -219,6 +219,7 @@ function AuthContent() {
                   onClick={() => setShowPwd((p) => !p)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-(--muted-fg) hover:text-(--foreground) transition-colors"
                   tabIndex={-1}
+                  aria-label={t("auth.togglePassword")}
                 >
                   {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -254,7 +255,7 @@ function AuthContent() {
                 <Loader2 size={17} className="animate-spin" />
               ) : (
                 <>
-                  {isSignup ? "Create Account" : "Sign In"}
+                  {isSignup ? t("auth.createAccount") : t("auth.signIn")}
                   <ArrowRight size={16} />
                 </>
               )}
@@ -264,7 +265,7 @@ function AuthContent() {
           {/* Divider */}
           <div className="my-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-(--border)" />
-            <span className="text-xs font-medium text-(--muted-fg)">or</span>
+            <span className="text-xs font-medium text-(--muted-fg)">{t("auth.or")}</span>
             <div className="h-px flex-1 bg-(--border)" />
           </div>
 
@@ -276,12 +277,11 @@ function AuthContent() {
           >
             {loading
               ? <Loader2 size={17} className="animate-spin text-(--muted-fg)" />
-              : "Continue as Demo User"}
+              : t("auth.demo")}
           </button>
 
           <p className="mt-4 text-center text-xs leading-relaxed text-(--muted-fg)">
-            By continuing you agree to use this service for official government service
-            guidance only. Your information is stored locally and not shared.
+            {t("auth.terms")}
           </p>
 
         </div>

@@ -185,7 +185,7 @@ def _question_fields(
     return out
 
 
-def _alternative_path(service_name: str, reasons: list[str], goal: str, language: str) -> str:
+def _alternative_path(service_name: str, reasons: list[str], goal: str) -> str:
     """Suggest a realistic alternate route for a citizen blocked from a service."""
     template = (
         f"You may not qualify for {service_name} ({'; '.join(reasons)}). "
@@ -194,9 +194,12 @@ def _alternative_path(service_name: str, reasons: list[str], goal: str, language
     )
     if not settings.groq_api_key:
         return template
+    # Generated in English, like everything else in the graph, and translated
+    # at the API boundary. Asking the model to write Sinhala here produced
+    # half-translated output and bypassed the glossary.
     sys = (
         "You advise Sri Lankan citizens who are NOT eligible for a government service. "
-        f"Suggest the most realistic alternative path, in language code '{language}', "
+        "Suggest the most realistic alternative path in English, "
         "in 1-2 short sentences (mention the correct office/procedure if one exists). "
         'Respond ONLY with JSON: {"alternative": "..."}'
     )
@@ -222,7 +225,7 @@ def _alternative_path(service_name: str, reasons: list[str], goal: str, language
     return template
 
 
-def _phrase_questions(fields: list[str], language: str) -> list[str]:
+def _phrase_questions(fields: list[str]) -> list[str]:
     """Phrase clarifying questions. Uses Groq when a key is configured, else
     falls back to deterministic templates (keeps unit tests offline)."""
     if not fields:
@@ -232,8 +235,8 @@ def _phrase_questions(fields: list[str], language: str) -> list[str]:
         return templates
 
     sys = (
-        "You phrase short, polite clarifying questions for a Sri Lankan citizen "
-        f"services assistant, in language code '{language}'. "
+        "You phrase short, polite clarifying questions in English for a Sri Lankan "
+        "citizen services assistant. "
         'Respond ONLY with JSON: {"questions": ["...", ...]} — one question per field, same order.'
     )
     try:
@@ -264,7 +267,7 @@ questions (1-4) whose answers determine whether this citizen can actually do thi
 procedure. Only ask what changes eligibility (citizenship/residency status, legal
 relationships, age, ownership, prior registrations). Do not ask for documents or dates.
 
-Respond ONLY with JSON in language code '{language}':
+Respond ONLY with JSON, in English:
 {{
   "questions": [
     {{
@@ -309,7 +312,6 @@ def _custom_eligibility(
     custom_steps: list[dict],
     facts: dict[str, Any],
     asked_fields: list[dict],
-    language: str,
 ) -> tuple[dict, list[str], list[dict]]:
     """LLM-driven eligibility for custom procedures.
 
@@ -327,7 +329,9 @@ def _custom_eligibility(
         try:
             raw = chat(
                 [
-                    {"role": "system", "content": _CUSTOM_QUESTIONS_SYS.format(language=language)},
+                    # .format() with no args still unescapes the {{ }} braces
+                    # that keep the JSON example literal in the prompt.
+                    {"role": "system", "content": _CUSTOM_QUESTIONS_SYS.format()},
                     {"role": "user", "content": f"Goal: {goal}\nProcedure steps: {step_titles}"},
                 ],
                 json_mode=True,
@@ -418,7 +422,6 @@ def eligibility(state: GraphState) -> dict:
             state.get("custom_steps") or [],
             facts,
             state.get("question_fields") or [],
-            state.get("language", "en"),
         )
         svc = verdict["services"]["custom_procedure"]
         alternatives = (
@@ -451,7 +454,7 @@ def eligibility(state: GraphState) -> dict:
 
     procedures = load_procedures()
     verdict, missing = evaluate_eligibility(detected, procedures, facts)
-    questions = _phrase_questions(missing, state.get("language", "en"))
+    questions = _phrase_questions(missing)
     question_fields = _question_fields(missing, questions, detected, procedures)
 
     # Blocked service → suggest an alternate route (embedded per-service so the
@@ -462,7 +465,7 @@ def eligibility(state: GraphState) -> dict:
             continue
         name = (procedures.get(sid) or {}).get("name", sid)
         reasons = [b["reason"] for b in svc["blockers"]]
-        alt = _alternative_path(name, reasons, state.get("goal", ""), state.get("language", "en"))
+        alt = _alternative_path(name, reasons, state.get("goal", ""))
         svc["alternative"] = alt
         alternatives.append({"service": sid, "name": name, "reason": "; ".join(reasons), "alternative": alt})
 

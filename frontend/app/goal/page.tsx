@@ -7,32 +7,33 @@ import { ArrowRight, ChevronLeft, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { AuthError, api, isAuthenticated } from "@/lib/api";
-import { DEMO_GOALS, LANG_LABELS } from "@/lib/types";
-import type { Language } from "@/lib/types";
+import { isLanguage, useLanguage, useT } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
+
+const EXAMPLE_KEYS = [
+  "goal.example1", "goal.example2", "goal.example3",
+  "goal.example4", "goal.example5", "goal.example6",
+];
 
 function GoalContent() {
   const router      = useRouter();
   const params      = useSearchParams();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const t           = useT();
+  const { language, setLanguage } = useLanguage();
 
   const [goal,     setGoal]     = useState("");
-  const [language, setLanguage] = useState<Language>("en");
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
 
-  // Restore pending goal saved before auth redirect, then apply URL param
+  // Restore pending goal saved before auth redirect, then apply URL param.
+  // No pending-language handling: language is now a durable preference in
+  // localStorage, so it already survives the auth round trip.
   useEffect(() => {
-    const pending     = sessionStorage.getItem("helplk_pending_goal");
-    const pendingLang = sessionStorage.getItem("helplk_pending_lang") as Language | null;
-
+    const pending = sessionStorage.getItem("helplk_pending_goal");
     if (pending) {
       setGoal(pending);
       sessionStorage.removeItem("helplk_pending_goal");
-    }
-    if (pendingLang && ["en", "si", "ta"].includes(pendingLang)) {
-      setLanguage(pendingLang);
-      sessionStorage.removeItem("helplk_pending_lang");
     }
 
     // URL ?q= param takes priority (service shortcuts from landing page)
@@ -55,7 +56,6 @@ function GoalContent() {
     // Gate on authentication: save goal and send to auth page
     if (!isAuthenticated()) {
       sessionStorage.setItem("helplk_pending_goal", goal.trim());
-      sessionStorage.setItem("helplk_pending_lang", language);
       router.push("/auth?next=/goal");
       return;
     }
@@ -64,12 +64,20 @@ function GoalContent() {
     setError("");
     try {
       const case_ = await api.createCase(goal.trim(), language);
+
+      // The backend detects the language actually written — which may differ
+      // from the picker if the citizen typed Sinhala or Singlish while it said
+      // English. What they wrote wins: the picker is a default, not a
+      // commitment, and most citizens never open it.
+      if (isLanguage(case_.language) && case_.language !== language) {
+        setLanguage(case_.language);
+      }
+
       router.push(`/cases/${case_.id}/processing`);
     } catch (err) {
       if (err instanceof AuthError) {
         // Token was stale — save goal and go to auth
         sessionStorage.setItem("helplk_pending_goal", goal.trim());
-        sessionStorage.setItem("helplk_pending_lang", language);
         router.push("/auth?next=/goal");
         return;
       }
@@ -80,7 +88,7 @@ function GoalContent() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-(--background)">
-      <Navbar language={language} onLanguageChange={setLanguage} />
+      <Navbar />
 
       <main className="flex-1 px-4 pb-10 pt-5">
         <div className="mx-auto w-full max-w-lg space-y-4">
@@ -90,36 +98,22 @@ function GoalContent() {
             href="/"
             className="inline-flex items-center gap-1 text-sm font-semibold text-(--muted-fg) hover:text-(--primary) transition-colors"
           >
-            <ChevronLeft size={16} /> Back to Home
+            <ChevronLeft size={16} /> {t("goal.back")}
           </Link>
 
           {/* Heading */}
           <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
             <h1 className="text-2xl font-extrabold text-(--foreground)">
-              What do you need help with?
+              {t("goal.heading")}
             </h1>
             <p className="mt-1.5 text-sm leading-relaxed text-(--muted-fg)">
-              Type in your own words. No need to know form names or office addresses.
+              {t("goal.subtitle")}
             </p>
           </motion.div>
 
-          {/* Language selector */}
-          <div className="flex flex-wrap items-center gap-2">
-            {(Object.keys(LANG_LABELS) as Language[]).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLanguage(l)}
-                className={cn(
-                  "rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
-                  l === language
-                    ? "bg-(--primary) text-white shadow-sm"
-                    : "border border-(--border) bg-white text-(--foreground) hover:border-(--primary)",
-                )}
-              >
-                {LANG_LABELS[l]}
-              </button>
-            ))}
-          </div>
+          {/* The page-level language picker that used to sit here is gone: the
+              Navbar picker is now wired to the shared context and works on
+              every page, so this was a second control for the same state. */}
 
           {/* Floating input bar */}
           <motion.div
@@ -132,7 +126,7 @@ function GoalContent() {
               ref={textareaRef}
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
-              placeholder="Tell us what you need help with…"
+              placeholder={t("goal.placeholder")}
               rows={3}
               className="flex-1 resize-none bg-transparent py-1 pl-1 text-base leading-relaxed text-(--foreground) placeholder:text-(--muted-fg) focus:outline-none focus-visible:outline-none focus:ring-0"
               style={{ minHeight: 80, maxHeight: 200, outline: "none", boxShadow: "none" }}
@@ -146,7 +140,8 @@ function GoalContent() {
               <button
                 onClick={() => { setGoal(""); textareaRef.current?.focus(); }}
                 className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-(--muted-fg) hover:bg-(--background) hover:text-(--danger) transition-colors"
-                title="Clear"
+                title={t("goal.clear")}
+                aria-label={t("goal.clear")}
               >
                 <X size={17} />
               </button>
@@ -156,6 +151,7 @@ function GoalContent() {
             <button
               onClick={() => void handleStart()}
               disabled={!goal.trim() || loading}
+              aria-label={t("goal.submit")}
               className={cn(
                 "mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all active:scale-90",
                 goal.trim() && !loading
@@ -169,7 +165,7 @@ function GoalContent() {
             </button>
           </motion.div>
 
-          <p className="px-1 text-xs text-(--muted-fg)">Press Ctrl+Enter to submit</p>
+          <p className="px-1 text-xs text-(--muted-fg)">{t("goal.hint")}</p>
 
           {/* Error */}
           <AnimatePresence>
@@ -180,7 +176,7 @@ function GoalContent() {
                 exit={{ opacity: 0 }}
                 className="rounded-xl border border-red-200 bg-(--danger-light) px-4 py-3 text-sm text-(--danger)"
               >
-                Something went wrong. Please check that the server is running and try again.
+                {t("goal.error")}
               </motion.div>
             )}
           </AnimatePresence>
@@ -188,25 +184,28 @@ function GoalContent() {
           {/* Example goals */}
           <div>
             <p className="mb-2.5 text-sm font-semibold text-(--muted-fg)">
-              Or choose a common question:
+              {t("goal.examplesTitle")}
             </p>
             <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-              {DEMO_GOALS.map((g, i) => (
-                <motion.button
-                  key={g}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 + i * 0.05 }}
-                  onClick={() => { setGoal(g); textareaRef.current?.focus(); }}
-                  className={cn(
-                    "flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors hover:bg-(--background) active:bg-(--background)",
-                    i < DEMO_GOALS.length - 1 ? "border-b border-(--border)" : "",
-                  )}
-                >
-                  <span className="text-sm leading-snug text-(--foreground)">{g}</span>
-                  <ArrowRight size={15} className="ml-3 shrink-0 text-(--muted-fg)" />
-                </motion.button>
-              ))}
+              {EXAMPLE_KEYS.map((key, i) => {
+                const example = t(key);
+                return (
+                  <motion.button
+                    key={key}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.05 + i * 0.05 }}
+                    onClick={() => { setGoal(example); textareaRef.current?.focus(); }}
+                    className={cn(
+                      "flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors hover:bg-(--background) active:bg-(--background)",
+                      i < EXAMPLE_KEYS.length - 1 ? "border-b border-(--border)" : "",
+                    )}
+                  >
+                    <span className="text-sm leading-snug text-(--foreground)">{example}</span>
+                    <ArrowRight size={15} className="ml-3 shrink-0 text-(--muted-fg)" />
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
 

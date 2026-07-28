@@ -5,9 +5,11 @@ import {
   AlertCircle, ArrowRight, CheckCircle2, Clock, FileQuestion, HelpCircle, Loader2, Undo2, XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n";
 import type { Requirement, RequirementStatus, SubGoal } from "@/lib/types";
 import { SATISFIED } from "@/lib/types";
 
+// `badge` holds a dictionary key, resolved at render.
 const REQ_CFG: Record<RequirementStatus, {
   Icon: typeof CheckCircle2;
   iconClass: string;
@@ -19,7 +21,7 @@ const REQ_CFG: Record<RequirementStatus, {
     Icon: CheckCircle2,
     iconClass: "text-(--success)",
     cardClass: "border-green-200 bg-(--success-light)",
-    badge: "You have this ✓",
+    badge: "requirements.confirmed",
     badgeClass: "bg-green-100 text-(--success)",
   },
   // Legacy rows from when documents were uploaded and machine-checked. Worded
@@ -28,35 +30,35 @@ const REQ_CFG: Record<RequirementStatus, {
     Icon: CheckCircle2,
     iconClass: "text-(--success)",
     cardClass: "border-green-200 bg-(--success-light)",
-    badge: "Verified ✓",
+    badge: "requirements.verified",
     badgeClass: "bg-green-100 text-(--success)",
   },
   rejected: {
     Icon: XCircle,
     iconClass: "text-(--danger)",
     cardClass: "border-red-200 bg-(--danger-light)",
-    badge: "Problem — see below",
+    badge: "requirements.rejected",
     badgeClass: "bg-red-100 text-(--danger)",
   },
   incomplete: {
     Icon: AlertCircle,
     iconClass: "text-orange-500",
     cardClass: "border-orange-200 bg-orange-50",
-    badge: "Not complete",
+    badge: "requirements.incomplete",
     badgeClass: "bg-orange-100 text-orange-700",
   },
   missing: {
     Icon: FileQuestion,
     iconClass: "text-(--muted-fg)",
     cardClass: "border-(--border) bg-white",
-    badge: "You need this",
+    badge: "requirements.missing",
     badgeClass: "bg-(--surface) text-(--muted-fg)",
   },
   needs_verification: {
     Icon: Clock,
     iconClass: "text-(--primary)",
     cardClass: "border-blue-200 bg-(--primary-light)",
-    badge: "Being checked",
+    badge: "requirements.checking",
     badgeClass: "bg-blue-100 text-(--primary)",
   },
 };
@@ -73,6 +75,7 @@ interface Props {
 export default function RequirementChecklist({
   requirements, subGoals = [], onHaveIt, onHowToGet, busyId,
 }: Props) {
+  const t = useT();
   if (!requirements.length) return null;
 
   return (
@@ -101,7 +104,7 @@ export default function RequirementChecklist({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p className="text-base font-semibold text-(--foreground)">{req.name}</p>
                   <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", cfg.badgeClass)}>
-                    {cfg.badge}
+                    {t(cfg.badge)}
                   </span>
                 </div>
                 {req.issues.length > 0 && (
@@ -123,7 +126,7 @@ export default function RequirementChecklist({
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-(--border) bg-white py-2.5 text-sm font-semibold text-(--muted-fg) hover:text-(--foreground) disabled:opacity-50 active:scale-95 transition-all"
               >
                 {busy ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />}
-                Undo
+                {t("requirements.undo")}
               </button>
             ) : !satisfied ? (
               <div className="mt-3 flex gap-2">
@@ -133,7 +136,7 @@ export default function RequirementChecklist({
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-(--success) bg-white py-3 text-sm font-bold text-(--success) hover:bg-(--success-light) disabled:opacity-50 active:scale-95 transition-all"
                 >
                   {busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                  I have it
+                  {t("requirements.haveIt")}
                 </button>
 
                 {existingPlan ? (
@@ -142,7 +145,7 @@ export default function RequirementChecklist({
                     disabled={busy}
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-(--primary) bg-white py-3 text-sm font-semibold text-(--primary) hover:bg-(--primary-light) disabled:opacity-50 active:scale-95 transition-all"
                   >
-                    Open plan
+                    {t("requirements.openPlan")}
                     <span className="text-xs font-normal text-(--muted-fg)">
                       {existingPlan.progress}%
                     </span>
@@ -155,7 +158,7 @@ export default function RequirementChecklist({
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-(--border) bg-white py-3 text-sm font-semibold text-(--foreground) hover:border-(--primary) hover:text-(--primary) disabled:opacity-50 active:scale-95 transition-all"
                   >
                     <HelpCircle size={16} />
-                    How to get it?
+                    {t("requirements.howToGet")}
                   </button>
                 )}
               </div>

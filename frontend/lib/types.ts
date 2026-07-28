@@ -176,31 +176,24 @@ export interface AgentState {
   payload?: Record<string, unknown>;
 }
 
-// Plain-English labels visible to citizens (no technical "Agent" naming)
-export const AGENTS: Omit<AgentState, "status">[] = [
-  { name: "planner",     label: "Reading your request",            description: "Understanding what you need help with" },
-  { name: "knowledge",   label: "Checking government information", description: "Finding the correct official rules and steps" },
-  { name: "dependency",  label: "Finding the right order",         description: "Checking which steps must come before others" },
-  { name: "eligibility", label: "Checking your situation",         description: "Making sure the steps match your personal needs" },
-  { name: "checklist",   label: "Building your plan",              description: "Creating your personal step-by-step guide" },
-  { name: "document",    label: "Listing your documents",          description: "Finding out which papers you need to bring" },
-  { name: "form",        label: "Checking the forms",              description: "Looking at what forms need to be filled" },
-  { name: "reminder",    label: "Finishing up",                    description: "Your plan is almost ready" },
+/**
+ * The graph nodes a run passes through, in order.
+ *
+ * Only the LENGTH is consumed (as the progress denominator on the processing
+ * page) — the citizen-facing wording for each node lives in the i18n
+ * dictionaries under `processing.*`, keyed by the same names.
+ */
+export const AGENTS = [
+  "planner", "knowledge", "dependency", "eligibility",
+  "checklist", "document", "form", "reminder",
 ];
 
 // ── i18n ─────────────────────────────────────────────────────────────────
 
+// Language names are always written in their OWN language, so these are not
+// translated and stay here rather than in the dictionaries.
 export const LANG_LABELS: Record<Language, string> = {
   en: "English",
   si: "සිංහල",
   ta: "தமிழ்",
 };
-
-export const DEMO_GOALS = [
-  "I lost my NIC and need to apply for a passport",
-  "I want to renew my driving licence",
-  "I need a copy of my birth certificate",
-  "I lost all my documents in a flood",
-  "I am starting a small business",
-  "I want to get married",
-];

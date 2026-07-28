@@ -10,6 +10,9 @@ from fastapi import Response
 
 from app.auth.jwt import CurrentUser, get_current_user
 from app.db.session import get_db
+from app.i18n.deps import request_language
+from app.i18n.localize import DETAIL_FIELDS, LIST_FIELDS, localize_case, localize_cases
+from app.i18n.understand import normalize_input
 from app.rag import rules
 from app.repositories import cases as repo
 from app.repositories import documents as doc_repo
@@ -33,13 +36,44 @@ def create_case(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    return repo.create_case(db, user_id=user.id, goal=body.goal, language=body.language)
+    """Create a plan from the citizen's own words, in any of the three languages.
+
+    Two versions of the goal are stored and they are not interchangeable:
+    `goal` is exactly what the citizen typed (shown back to them), `goal_en` is
+    the normalised English the graph and the RAG query consume.
+
+    `language` records what they actually WROTE, which may differ from the
+    picker — that detection is what the client uses to auto-switch.
+
+    This endpoint is `def`, so FastAPI runs it in a threadpool and the blocking
+    normalisation call does not stall the event loop.
+    """
+    analysis = normalize_input(body.goal)
+    return repo.create_case(
+        db,
+        user_id=user.id,
+        goal=body.goal,
+        goal_en=analysis.english,
+        language=analysis.detected_language,
+    )
 
 
 @router.get("", response_model=list[CaseDetail])
-def list_cases(db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)):
+def list_cases(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    lang: str = Depends(request_language),
+):
     # CaseDetail (with steps) so the dashboard can show each case's next step.
-    return repo.list_cases(db, user_id=user.id)
+    cases = repo.list_cases(db, user_id=user.id)
+
+    # cache_only: the dashboard is the first screen after sign-in, and a
+    # cold-cache model call across every plan would exceed the client's request
+    # timeout — the citizen would see "is the server running?" instead of their
+    # plans. Untranslated strings fall back to English; the detail view (and
+    # the seed script) warm the cache.
+    details = [CaseDetail.model_validate(c) for c in cases]
+    return localize_cases(details, lang, fields=LIST_FIELDS, cache_only=True)
 
 
 @router.get("/{case_id}", response_model=CaseDetail)
@@ -47,11 +81,12 @@ def get_case(
     case_id: UUID,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    lang: str = Depends(request_language),
 ):
     case = repo.get_case(db, case_id=case_id, user_id=user.id)
     if case is None:
         raise HTTPException(status_code=404, detail="Case not found")
-    return case
+    return localize_case(CaseDetail.model_validate(case), lang, fields=DETAIL_FIELDS)
 
 
 @router.delete("/{case_id}", status_code=204)
@@ -71,6 +106,7 @@ def update_step_status(
     body: StepStatusUpdate,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    lang: str = Depends(request_language),
 ):
     """Mark a step completed (or undo it); returns the recomputed case."""
     case = repo.get_case(db, case_id=case_id, user_id=user.id)
@@ -87,7 +123,7 @@ def update_step_status(
         db.commit()
 
     db.refresh(case)
-    return case
+    return localize_case(CaseDetail.model_validate(case), lang, fields=DETAIL_FIELDS)
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +149,7 @@ def update_requirement_status(
     body: RequirementStatusUpdate,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    lang: str = Depends(request_language),
 ):
     """Citizen declares they hold a requirement (or takes it back).
 
@@ -133,7 +170,7 @@ def update_requirement_status(
 
     db.commit()
     db.refresh(case)
-    return case
+    return localize_case(CaseDetail.model_validate(case), lang, fields=DETAIL_FIELDS)
 
 
 @router.post("/{case_id}/requirements/{document_id}/sub-goal", response_model=CaseDetail)
@@ -143,6 +180,7 @@ def create_requirement_sub_goal(
     response: Response,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    lang: str = Depends(request_language),
 ):
     """Start a plan for obtaining this requirement, linked back to this case.
 
@@ -164,7 +202,7 @@ def create_requirement_sub_goal(
     )
     if existing is not None:
         response.status_code = 200
-        return existing
+        return localize_case(CaseDetail.model_validate(existing), lang, fields=DETAIL_FIELDS)
 
     if len(subgoal_repo.ancestors(db, case_id=str(case_id))) >= subgoal_repo.MAX_CASCADE_DEPTH:
         raise HTTPException(
@@ -185,9 +223,14 @@ def create_requirement_sub_goal(
         db,
         user_id=user.id,
         goal=goal,
+        # Machine-composed in English, so it needs no normalisation — and
+        # marking it 'generated' is what tells the response localizer this goal
+        # MAY be translated, unlike a citizen's own words.
+        goal_en=goal,
+        goal_source="generated",
         language=case.language,
         parent_case_id=str(case_id),
         parent_requirement_key=key,
     )
     response.status_code = 201
-    return sub
+    return localize_case(CaseDetail.model_validate(sub), lang, fields=DETAIL_FIELDS)

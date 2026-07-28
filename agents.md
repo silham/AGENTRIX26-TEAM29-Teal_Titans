@@ -1542,3 +1542,59 @@ data model, and ordered task list live in
 * **Data safety:** private bucket behind authorized endpoints, per-user scoping
   (optional RLS), delete endpoints, PII minimization, audit logs.
 * **Everything free tier:** Groq, Gemini, Supabase/Neon, Vercel, Resend.
+
+---
+
+## 27. Multilingual (Sinhala / Tamil / English) — the invariant
+
+> **The graph, the database and the rules layer are English-only.
+> Citizen input is normalised to English once, on the way IN.
+> Citizen-facing text is translated once, at the API boundary, on the way OUT.**
+
+Read this before touching anything under `app/i18n/`, `app/graph/`, or the
+language handling in the frontend.
+
+**Why English is canonical.** Persisting translated steps would make switching
+language a destructive write: `replace_steps` is DELETE+INSERT, so a re-run
+drops manually completed steps. Under this design, switching language is a pure
+read-path change — zero writes. It also keeps the English RAG corpus, the
+English-tuned score floor and the English keyword fallback working untouched.
+
+**Three rules that are load-bearing, not stylistic:**
+
+1. **`options[].value` and `field` are machine keys. NEVER translate them.**
+   `_check_rule` compares them with exact `==` against English values from the
+   procedure JSON. A translated value makes an eligible citizen read as
+   ineligible — a silent denial with no error anywhere. Only `question` and
+   `label` are translated. See `tests/test_m8_i18n_eligibility.py`.
+2. **Deep-copy before translating anything from graph state.** The paused-run
+   payload aliases the LangGraph checkpoint's own objects; mutating them leaves
+   Sinhala questions in state, which are then replayed into English-only prompts
+   on resume.
+3. **A citizen's own goal is never translated.** `Case.goal` holds their exact
+   words; `Case.goal_en` holds the English the graph consumes. Only
+   `goal_source == "generated"` text (machine-composed sub-goals) is translated.
+
+**Where things live**
+
+| Concern | Module |
+|---|---|
+| Input → English (script, transliteration, mixed) | `app/i18n/understand.py` |
+| English → si/ta, with a persistent cache | `app/i18n/translator.py` |
+| Which response fields get translated | `app/i18n/localize.py` |
+| Official government terminology | `app/i18n/glossary.py` |
+| Per-request render language (`X-Language`) | `app/i18n/deps.py` |
+| UI chrome strings | `frontend/lib/i18n/{en,si,ta}.ts` |
+
+**Operational notes**
+
+* Warm the cache and produce a review file:
+  `python -m scripts.seed_translations` then `--export reviewed.tsv`.
+  Corrected rows import back as `source='human'` and are never overwritten.
+* Bump `translator.PROMPT_VERSION` when the prompt or glossary changes
+  materially — it is part of the cache key, so old machine output is superseded.
+* `GET /cases` is **cache-only** and must stay that way: a cold-cache model call
+  there would exceed the client's request timeout and read as a server error.
+* `/admin` is intentionally English-only (staff-only surface).
+* Adding a key to `frontend/lib/i18n/en.ts` breaks the `si.ts`/`ta.ts` compile
+  until it is translated. That is the parity check — do not weaken it.

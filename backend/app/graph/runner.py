@@ -16,10 +16,13 @@ from the interrupted node; no initial state is re-supplied.
 from __future__ import annotations
 
 import asyncio
+import copy
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from app.graph.builder import build_graph
 from app.graph.state import GraphState
+from app.i18n.translator import translate_many
 from app.schemas.run import RunEvent
 
 # ── Checkpointer singleton ────────────────────────────────────────────────────
@@ -96,6 +99,69 @@ _NODE_NAMES = frozenset(
 )
 
 
+async def pending_question_fields(case_id: str) -> list[dict[str, Any]]:
+    """The question specs a paused run is waiting on, or [] if it isn't paused.
+
+    Deep-copied: the caller inspects these to decide which answers are free
+    text, and handing out the checkpoint's own objects invites a mutation that
+    would corrupt graph state.
+    """
+    if _checkpointer is None:
+        return []
+    try:
+        graph = await _get_graph()
+        snap = await graph.aget_state({"configurable": {"thread_id": case_id}})
+        if not snap or "ask_user" not in tuple(snap.next or ()):
+            return []
+        return copy.deepcopy((snap.values or {}).get("question_fields") or [])
+    except Exception:
+        return []
+
+
+def _localize_question_fields(
+    specs: list[dict[str, Any]], lang: str
+) -> list[dict[str, Any]]:
+    """Translate the citizen-facing parts of eligibility questions.
+
+    Translates ONLY `question` and each option's `label`.
+
+    `field` and `option["value"]` are machine keys that the citizen's browser
+    posts straight back, and `_check_rule` compares them with exact `==`
+    against English values from the procedure JSON. Translating a value would
+    make an eligible citizen read as ineligible — a silent denial, which is the
+    worst failure this system can produce. Hence the explicit allowlist below
+    rather than a blanket walk of the dict.
+    """
+    if not specs or lang == "en":
+        return specs
+
+    # Copy FIRST. `specs` may alias the LangGraph checkpoint's own list, and
+    # mutating it in place would leave Sinhala questions in graph state, which
+    # then get replayed into the English-only verdict prompt on resume.
+    out = copy.deepcopy(specs)
+
+    texts: list[str] = []
+    for spec in out:
+        if isinstance(spec.get("question"), str):
+            texts.append(spec["question"])
+        for opt in spec.get("options") or []:
+            if isinstance(opt.get("label"), str):
+                texts.append(opt["label"])
+    if not texts:
+        return out
+
+    mapping = translate_many(texts, lang)
+    for spec in out:
+        q = spec.get("question")
+        if isinstance(q, str):
+            spec["question"] = mapping.get(q, q)
+        for opt in spec.get("options") or []:
+            label = opt.get("label")
+            if isinstance(label, str):
+                opt["label"] = mapping.get(label, label)
+    return out
+
+
 async def run_case(
     case_id: str,
     user_id: str,
@@ -104,6 +170,16 @@ async def run_case(
     resume: bool = False,
     answers: dict | None = None,
 ) -> AsyncGenerator[str, None]:
+    """Stream a graph run as SSE.
+
+    `goal` must already be English (the endpoint passes `case.goal_en`) — the
+    graph and the rules layer are English-only.
+
+    `language` is the RENDER language for this request, used to localize the
+    paused-run questions on the way out. It is read from the request header
+    each time, so it is correct even on resume, where no initial state is
+    supplied and everything else comes from the checkpoint.
+    """
     graph = await _get_graph()
     config = {"configurable": {"thread_id": case_id}}
 
@@ -154,13 +230,22 @@ async def run_case(
                 snap = await graph.aget_state(config)
                 if snap and "ask_user" in tuple(snap.next or ()):
                     vals = snap.values or {}
+                    # to_thread because the translator is sync (it wraps a
+                    # blocking SDK) and this is an async generator.
+                    specs = await asyncio.to_thread(
+                        _localize_question_fields,
+                        vals.get("question_fields") or [],
+                        language,
+                    )
                     yield RunEvent(
                         agent="system",
                         status="paused",
                         message="awaiting_answers",
                         payload={
+                            # `questions` is the legacy flat list, unrendered by
+                            # the UI; `question_fields` is what gets displayed.
                             "questions": vals.get("questions") or [],
-                            "question_fields": vals.get("question_fields") or [],
+                            "question_fields": specs,
                         },
                     ).to_sse()
                     return

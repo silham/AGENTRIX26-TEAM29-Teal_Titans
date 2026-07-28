@@ -1,3 +1,4 @@
+import { getLanguage } from "./i18n";
 import type {
   Case,
   KnowledgeDoc,
@@ -71,9 +72,20 @@ function getToken(): string | null {
   return sessionStorage.getItem("helplk_token");
 }
 
+/**
+ * Auth + language on every outbound request.
+ *
+ * X-Language rather than a ?lang= query param because all four fetch paths in
+ * this file (request, deleteCase, streamRun, admin.upload) already call this
+ * one function — a query param would have to be threaded through each, and a
+ * missed one would silently return English.
+ */
 function authHeaders(): HeadersInit {
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return {
+    "X-Language": getLanguage(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
 }
 
 // Thrown when the backend returns 401 — caller should redirect to /auth
@@ -81,9 +93,21 @@ export class AuthError extends Error {
   constructor() { super("401"); this.name = "AuthError"; }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+const DEFAULT_TIMEOUT_MS = 15_000;
+/**
+ * Endpoints that may translate on a cold cache need more than the default.
+ * The list endpoint deliberately does NOT: it is cache-only server-side and
+ * never waits on the translation model.
+ */
+const TRANSLATING_TIMEOUT_MS = 45_000;
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000); // 15s timeout
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${BACKEND}${path}`, {
       ...init,
@@ -113,14 +137,15 @@ export const api = {
 
   listCases: () => request<Case[]>("/cases"),
 
-  getCase: (id: string) => request<Case>(`/cases/${id}`),
+  getCase: (id: string) =>
+    request<Case>(`/cases/${id}`, undefined, TRANSLATING_TIMEOUT_MS),
 
   // Mark a step done (or undo); backend recomputes locks/progress and returns the case.
   updateStep: (caseId: string, stepId: string, status: "completed" | "pending") =>
     request<Case>(`/cases/${caseId}/steps/${stepId}`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
-    }),
+    }, TRANSLATING_TIMEOUT_MS),
 
   deleteCase: (id: string) =>
     fetch(`${BACKEND}/cases/${id}`, {
@@ -190,11 +215,15 @@ export const api = {
     request<Case>(`/cases/${caseId}/requirements/${reqId}`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
-    }),
+    }, TRANSLATING_TIMEOUT_MS),
 
   /** "How to get it?" — start (or reopen) a plan for obtaining this requirement. */
   createSubGoal: (caseId: string, reqId: string) =>
-    request<Case>(`/cases/${caseId}/requirements/${reqId}/sub-goal`, { method: "POST" }),
+    request<Case>(
+      `/cases/${caseId}/requirements/${reqId}/sub-goal`,
+      { method: "POST" },
+      TRANSLATING_TIMEOUT_MS,
+    ),
 
   // ── Admin knowledge base ──────────────────────────────────────────────
   // Every call here 403s for non-admins; the UI gate is cosmetic (see isAdmin).

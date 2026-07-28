@@ -12,7 +12,11 @@
   --color-success:    var(--success);
   --color-warning:    var(--warning);
   --color-danger:     var(--danger);
-  --font-sans: var(--font-geist-sans);
+  /* Geist first for Latin; the Notos are glyph fallbacks so a mixed-script
+     page (English chrome + a Sinhala goal) resolves per-character with no
+     per-locale font swapping. Kept in sync with `body` below — the stack is
+     declared in both places and changing only one fixes only half of it. */
+  --font-sans: var(--font-geist-sans), var(--font-noto-sinhala), var(--font-noto-tamil);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -49,6 +53,13 @@ body {
   min-height: 100dvh;
   line-height: 1.6;
 }
+
+/* Sinhala and Tamil have taller ascenders and deeper descenders than Latin and
+   clip at 1.6. Scoped to the locale rather than raised globally, which would
+   reflow every English page for no reason. Set pre-hydration by the inline
+   script in layout.tsx, so this applies on the first paint. */
+html[lang="si"] body { line-height: 1.85; }
+html[lang="ta"] body { line-height: 1.8; }
 
 /* Leave room for bottom nav on mobile */
 @media (max-width: 767px) {

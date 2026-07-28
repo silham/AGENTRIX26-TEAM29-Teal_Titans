@@ -40,6 +40,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def vary_on_language(request, call_next):
+    """Advertise that responses differ by X-Language.
+
+    Case bodies are translated per request. Without this, any shared cache —
+    a CDN, a proxy, the browser's own HTTP cache — is entitled to serve a
+    Sinhala body to a subsequent English request for the same URL.
+    """
+    response = await call_next(request)
+    existing = response.headers.get("Vary")
+    response.headers["Vary"] = f"{existing}, X-Language" if existing else "X-Language"
+    return response
+
 # Pre-registered routers (one per domain owner)
 app.include_router(auth.router)       # Auth
 app.include_router(cases.router)      # M1

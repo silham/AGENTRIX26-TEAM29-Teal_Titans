@@ -32,10 +32,23 @@ class Case(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
     user_id: Mapped[str] = mapped_column(String(255), index=True)
+    # The citizen's OWN words, in whatever language/script they typed. Shown
+    # back to them verbatim — never translated, or we would round-trip their
+    # Sinhala through English and hand back something they did not write.
     goal: Mapped[str] = mapped_column(Text)
+    # The same goal normalised to English: script-converted, transliteration
+    # expanded, mixed-language resolved. THIS is what the graph, the planner
+    # and the RAG query consume, which is what keeps the English-only corpus,
+    # the English-tuned score floor and the English keyword fallback working.
+    goal_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 'citizen' = typed by a person; 'generated' = machine-written English for
+    # a sub-goal. Only 'generated' goals are translated on the way out.
+    goal_source: Mapped[str] = mapped_column(String(16), default="citizen")
     status: Mapped[str] = mapped_column(String(32), default="in_progress")
     progress: Mapped[int] = mapped_column(Integer, default=0)
     current_step_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # The language DETECTED in `goal`, not the picker value. Render language is
+    # per-request (X-Language) so a citizen can switch without touching data.
     language: Mapped[str] = mapped_column(String(8), default="en")
 
     # Sub-goal link: this case exists to obtain one requirement of another case
@@ -206,3 +219,30 @@ class DocChunk(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     document: Mapped[KnowledgeDocument | None] = relationship(back_populates="chunks")
+
+
+class Translation(Base):
+    """Cache of English → Sinhala/Tamil strings, keyed by content hash.
+
+    The database and the rules layer hold English only; this table is what lets
+    a response be rendered in another language without a graph re-run and
+    without a second write path. Everything here is derived data — dropping it
+    costs latency and tokens, never correctness.
+
+    ``prompt_version`` is part of the key so an improved prompt or glossary can
+    supersede earlier machine output. Without it the first translation of a
+    term would be permanent with no invalidation path short of TRUNCATE.
+
+    ``source`` is 'machine' or 'human'. A human-reviewed row is never
+    overwritten by the machine — that is what makes the review pass durable.
+    """
+
+    __tablename__ = "translations"
+
+    source_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lang: Mapped[str] = mapped_column(String(8), primary_key=True)
+    prompt_version: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    source_text: Mapped[str] = mapped_column(Text)
+    translated_text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(8), default="machine")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

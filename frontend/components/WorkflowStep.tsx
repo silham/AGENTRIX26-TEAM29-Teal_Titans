@@ -3,15 +3,18 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, Lock, Clock, ChevronRight, ExternalLink, Loader2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n";
 import type { Step } from "@/lib/types";
 
+// `badge` is a dictionary key, not display text — resolved at render so a
+// language switch re-labels these without remounting.
 const STATUS_CFG = {
   completed: {
     circleClass: "bg-(--success-light) border-green-300",
     Icon:        CheckCircle2,
     iconColor:   "text-(--success)",
     cardClass:   "border-green-200 bg-(--success-light)",
-    badge:       "Done ✓",
+    badge:       "step.done",
     badgeClass:  "bg-green-100 text-(--success)",
   },
   active: {
@@ -19,7 +22,7 @@ const STATUS_CFG = {
     Icon:        ChevronRight,
     iconColor:   "text-(--primary)",
     cardClass:   "border-blue-300 bg-(--primary-light) shadow-sm",
-    badge:       "Do This Now",
+    badge:       "step.active",
     badgeClass:  "bg-blue-100 text-(--primary)",
   },
   pending: {
@@ -27,7 +30,7 @@ const STATUS_CFG = {
     Icon:        Clock,
     iconColor:   "text-(--muted-fg)",
     cardClass:   "border-(--border) bg-white",
-    badge:       "Coming Up",
+    badge:       "step.pending",
     badgeClass:  "bg-(--surface) text-(--muted-fg)",
   },
   locked: {
@@ -35,7 +38,7 @@ const STATUS_CFG = {
     Icon:        Lock,
     iconColor:   "text-orange-500",
     cardClass:   "border-orange-200 bg-orange-50",
-    badge:       "Not Yet",
+    badge:       "step.locked",
     badgeClass:  "bg-orange-100 text-orange-700",
   },
   skipped: {
@@ -43,7 +46,7 @@ const STATUS_CFG = {
     Icon:        Clock,
     iconColor:   "text-(--muted-fg)",
     cardClass:   "border-(--border) bg-white opacity-50",
-    badge:       "Skipped",
+    badge:       "step.skipped",
     badgeClass:  "bg-(--surface) text-(--muted-fg)",
   },
 };
@@ -58,6 +61,7 @@ interface Props {
 }
 
 export default function WorkflowStep({ step, index, isLast, onExplain, onToggle, busy }: Props) {
+  const t    = useT();
   const cfg  = STATUS_CFG[step.status];
   const Icon = cfg.Icon;
 
@@ -93,9 +97,9 @@ export default function WorkflowStep({ step, index, isLast, onExplain, onToggle,
       >
         {/* Step number + badge */}
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-(--muted-fg)">Step {index + 1}</span>
+          <span className="text-xs text-(--muted-fg)">{t("step.number", { n: index + 1 })}</span>
           <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", cfg.badgeClass)}>
-            {cfg.badge}
+            {t(cfg.badge)}
           </span>
         </div>
 
@@ -110,7 +114,7 @@ export default function WorkflowStep({ step, index, isLast, onExplain, onToggle,
         {/* Locked reason (may include an eligibility blocker + alternative path) */}
         {step.status === "locked" && (
           <p className="mt-2 text-sm text-orange-700">
-            ⛔ {step.reason || "Finish the earlier steps first, then this will become available."}
+            ⛔ {step.reason || t("step.lockedFallback")}
           </p>
         )}
 
@@ -123,7 +127,7 @@ export default function WorkflowStep({ step, index, isLast, onExplain, onToggle,
               className="inline-flex items-center gap-1.5 rounded-lg bg-(--primary) px-3 py-1.5 text-xs font-semibold text-white hover:bg-(--primary-dark) active:scale-95 transition-all disabled:opacity-60"
             >
               {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-              Mark as done
+              {t("step.markDone")}
             </button>
           )}
           {onToggle && step.status === "completed" && (
@@ -133,7 +137,7 @@ export default function WorkflowStep({ step, index, isLast, onExplain, onToggle,
               className="inline-flex items-center gap-1.5 rounded-lg border border-(--border) bg-white px-3 py-1.5 text-xs font-semibold text-(--muted-fg) hover:text-(--foreground) transition-colors disabled:opacity-60"
             >
               {busy ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
-              Undo
+              {t("step.undo")}
             </button>
           )}
           {step.source_url && (
@@ -143,7 +147,7 @@ export default function WorkflowStep({ step, index, isLast, onExplain, onToggle,
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs font-medium text-(--primary) underline"
             >
-              <ExternalLink size={11} /> Official source
+              <ExternalLink size={11} /> {t("step.officialSource")}
             </a>
           )}
           {onExplain && (
@@ -151,7 +155,7 @@ export default function WorkflowStep({ step, index, isLast, onExplain, onToggle,
               onClick={() => onExplain(step)}
               className="rounded-lg border border-(--border) bg-white px-3 py-1.5 text-xs font-semibold text-(--foreground) hover:border-(--primary) hover:text-(--primary) transition-colors"
             >
-              More info
+              {t("step.moreInfo")}
             </button>
           )}
         </div>

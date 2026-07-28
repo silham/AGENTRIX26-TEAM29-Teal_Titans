@@ -26,6 +26,8 @@ def create_case(
     *,
     user_id: str,
     goal: str,
+    goal_en: str | None = None,
+    goal_source: str = "citizen",
     language: str = "en",
     parent_case_id: str | None = None,
     parent_requirement_key: str | None = None,
@@ -33,6 +35,10 @@ def create_case(
     case = Case(
         user_id=user_id,
         goal=goal,
+        # Default to the original so a caller that skips normalisation still
+        # yields a usable `goal_en` — the graph reads it unconditionally.
+        goal_en=goal_en if goal_en is not None else goal,
+        goal_source=goal_source,
         language=language,
         parent_case_id=parent_case_id,
         parent_requirement_key=parent_requirement_key,

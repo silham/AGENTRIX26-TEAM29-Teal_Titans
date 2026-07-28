@@ -8,14 +8,17 @@ import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import type { Language } from "@/lib/types";
 import { LANG_LABELS } from "@/lib/types";
+import { useLanguage, useT } from "@/lib/i18n";
 import { getStoredUser, isAdmin, isAuthenticated, signOut } from "@/lib/api";
 
-interface NavbarProps {
-  language?: Language;
-  onLanguageChange?: (l: Language) => void;
-}
-
-export default function Navbar({ language = "en", onLanguageChange }: NavbarProps) {
+/**
+ * Language was previously an optional prop that only /goal passed, so the
+ * picker silently did nothing on every other page. It now reads the shared
+ * context, which is why this component takes no props at all.
+ */
+export default function Navbar() {
+  const { language, setLanguage } = useLanguage();
+  const t        = useT();
   const router   = useRouter();
   const [langOpen,   setLangOpen]   = useState(false);
   const [userOpen,   setUserOpen]   = useState(false);
@@ -59,8 +62,8 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
             <span className="text-sm font-bold text-white">LK</span>
           </div>
           <div className="leading-tight">
-            <p className="text-base font-bold text-(--foreground)">HelpLK</p>
-            <p className="hidden text-[10px] text-(--muted-fg) sm:block">Government Services</p>
+            <p className="text-base font-bold text-(--foreground)">{t("nav.brand")}</p>
+            <p className="hidden text-[10px] text-(--muted-fg) sm:block">{t("nav.tagline")}</p>
           </div>
         </Link>
 
@@ -70,6 +73,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
           <div className="relative">
             <button
               onClick={() => { setLangOpen((p) => !p); setUserOpen(false); }}
+              aria-label={t("nav.language")}
               className="flex items-center gap-1.5 rounded-xl border border-(--border) bg-(--surface) px-3 py-2 text-sm font-medium text-(--foreground) hover:border-(--primary) transition-colors"
             >
               <Globe size={15} className="text-(--muted-fg)" />
@@ -90,7 +94,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
                     {(Object.keys(LANG_LABELS) as Language[]).map((l) => (
                       <button
                         key={l}
-                        onClick={() => { onLanguageChange?.(l); setLangOpen(false); }}
+                        onClick={() => { setLanguage(l); setLangOpen(false); }}
                         className={cn(
                           "w-full px-4 py-3 text-left text-sm transition-colors hover:bg-(--surface)",
                           l === language ? "font-semibold text-(--primary)" : "text-(--foreground)",
@@ -112,6 +116,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
                 onClick={() => { setUserOpen((p) => !p); setLangOpen(false); }}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-(--primary) text-sm font-bold text-white hover:opacity-90 transition-opacity"
                 title={userEmail ?? undefined}
+                aria-label={t("nav.account")}
               >
                 {initials}
               </button>
@@ -149,7 +154,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
                         className="flex items-center gap-2.5 px-4 py-3 text-sm text-(--foreground) hover:bg-(--surface) transition-colors"
                       >
                         <User size={15} className="text-(--muted-fg)" />
-                        My Plans
+                        {t("nav.myPlans")}
                       </Link>
 
                       {/* Shown only to admins. Cosmetic — /admin and every
@@ -161,7 +166,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
                           className="flex items-center gap-2.5 px-4 py-3 text-sm text-(--foreground) hover:bg-(--surface) transition-colors"
                         >
                           <Database size={15} className="text-(--muted-fg)" />
-                          Knowledge Base
+                          {t("nav.knowledgeBase")}
                         </Link>
                       )}
 
@@ -170,7 +175,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
                         className="flex w-full items-center gap-2.5 border-t border-(--border) px-4 py-3 text-sm text-(--danger) hover:bg-red-50 transition-colors"
                       >
                         <LogOut size={15} />
-                        Sign Out
+                        {t("nav.signOut")}
                       </button>
                     </motion.div>
                   </>
@@ -182,7 +187,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
               href="/auth"
               className="rounded-xl bg-(--primary) px-3 py-2 text-sm font-semibold text-white hover:bg-(--primary-dark) transition-colors"
             >
-              Sign In
+              {t("nav.signIn")}
             </Link>
           )}
         </div>

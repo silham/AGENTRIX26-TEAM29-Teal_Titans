@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { BookOpen, ExternalLink, ShieldCheck } from "lucide-react";
+import { useT } from "@/lib/i18n";
 import type { Citation } from "@/lib/types";
 
 /**
@@ -14,6 +15,7 @@ import type { Citation } from "@/lib/types";
  * suggestion, which is the whole trust model here.
  */
 export default function CitationList({ citations }: { citations: Citation[] }) {
+  const t = useT();
   if (!citations?.length) return null;
 
   const official  = citations.filter((c) => c.origin === "rules");
@@ -25,8 +27,8 @@ export default function CitationList({ citations }: { citations: Citation[] }) {
         <Section
           Icon={ShieldCheck}
           iconClass="text-(--success)"
-          title="Official procedure"
-          caption="Verified government sources this plan is built from."
+          title={t("citations.officialTitle")}
+          caption={t("citations.officialCaption")}
           citations={official}
         />
       )}
@@ -34,8 +36,8 @@ export default function CitationList({ citations }: { citations: Citation[] }) {
         <Section
           Icon={BookOpen}
           iconClass="text-(--primary)"
-          title="Supporting documents"
-          caption="Passages from government documents used to answer your question."
+          title={t("citations.supportingTitle")}
+          caption={t("citations.supportingCaption")}
           citations={supporting}
         />
       )}
