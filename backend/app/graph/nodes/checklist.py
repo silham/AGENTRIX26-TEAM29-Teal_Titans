@@ -42,24 +42,30 @@ from typing import Any
 from app.graph.nodes.audit import audit
 from app.graph.state import GraphState
 from app.rag import rules
+from app.repositories.documents import norm_key
 from app.repositories.steps import replace_steps
+from app.schemas.document import SATISFIED_STATUSES
 
 # Columns accepted by repositories.steps.replace_steps (-> Step(**item)).
-_STEP_COLUMNS = {"ord", "title", "description", "status", "depends_on", "source_url", "reason"}
+# `fulfills` is persisted (unlike `service`, which stays UI-only) because
+# "I have it" on the Requirements tab needs it to find the step to complete.
+_STEP_COLUMNS = {
+    "ord", "title", "description", "status", "depends_on", "source_url", "reason", "fulfills",
+}
 
 
-def _accepted_requirements(documents: list[dict]) -> set[str]:
-    """Requirement keys considered satisfied by an accepted document.
+def _satisfied_requirements(documents: list[dict]) -> set[str]:
+    """Requirement keys the citizen holds — self-declared or machine-verified.
 
-    Matches on document type then name, normalised to snake_case so a doc named
-    "Police Report" satisfies a step that ``fulfills`` "police_report"."""
+    Matches on document type then name, normalised so a doc named "Police
+    Report" satisfies a step that ``fulfills`` "police_report"."""
     done: set[str] = set()
     for doc in documents or []:
-        if doc.get("status") != "accepted":
+        if doc.get("status") not in SATISFIED_STATUSES:
             continue
         for key in (doc.get("type"), doc.get("name")):
             if key:
-                done.add(str(key).strip().lower().replace(" ", "_"))
+                done.add(norm_key(key))
     return done
 
 
@@ -98,7 +104,7 @@ def compose_checklist(
     """
     services = (dependency_graph or {}).get("services") or {}
     elig_services = (eligibility or {}).get("services") or {}
-    satisfied = _accepted_requirements(documents)
+    satisfied = _satisfied_requirements(documents)
 
     items: list[dict[str, Any]] = []
     ord_counter = 0
@@ -109,10 +115,12 @@ def compose_checklist(
         locked, lock_reason = _is_locked(svc, elig_services.get(sid) or {})
 
         for step in steps_by_service.get(sid, []) or []:
-            fulfills = step.get("fulfills")
+            # Normalise on write so Step.fulfills, Document.type and
+            # Case.parent_requirement_key are always spelled the same way.
+            fulfills = norm_key(step.get("fulfills")) or None
             if locked:
                 status = "locked"
-            elif fulfills and str(fulfills).lower() in satisfied:
+            elif fulfills and fulfills in satisfied:
                 status = "completed"
             else:
                 status = "pending"
@@ -128,9 +136,9 @@ def compose_checklist(
                     "depends_on": svc.get("depends_on", []) or [],
                     "source_url": step.get("source_url") or rules_source(sid),
                     "reason": lock_reason if status == "locked" else None,
+                    "fulfills": fulfills,
                     # UI-only metadata (stripped before persistence):
                     "service": sid,
-                    "fulfills": fulfills,
                 }
             )
             ord_counter += 1
@@ -198,6 +206,11 @@ _REQ_NAMES = {
     "medical_certificate": "Medical Certificate",
     "marriage_certificate": "Marriage Certificate",
     "current_license": "Current Driving Licence",
+    "current_driving_license": "Current Driving Licence",
+    # The birth-certificate procedure's own spelling of valid_nic.
+    "applicant_nic": "National Identity Card (NIC)",
+    "original_birth_entry_number": "Birth Entry Number",
+    "application_form": "Application Form",
 }
 
 # Requirement keys that aren't uploadable documents.
@@ -223,8 +236,7 @@ def _sync_documents(case_id: str, requirements: list[str], custom_requirements: 
     from app.db.session import SessionLocal
     from app.repositories import documents as doc_repo
 
-    def _norm(key: str) -> str:
-        return "_".join(str(key).strip().lower().split())
+    _norm = norm_key  # one shared definition (repositories.documents.norm_key)
 
     wanted: dict[str, str] = {}  # normalized type-key -> display name
     for key in requirements or []:
@@ -269,6 +281,38 @@ def _sync_documents(case_id: str, requirements: list[str], custom_requirements: 
         db.close()
 
 
+def _merge_saved_requirements(case_id: str, documents: list[dict]) -> list[dict]:
+    """Overlay persisted requirement rows onto the in-state document list.
+
+    Graph state never carries what the citizen confirmed in a previous session,
+    so a re-run would recompose the checklist as if nothing were held. Rows
+    already present in ``documents`` win — they are from this run and fresher.
+
+    Best-effort: a DB failure here must not stop the citizen getting their plan.
+    """
+    if not case_id:
+        return documents
+    import sys
+
+    from app.db.session import SessionLocal
+    from app.repositories import documents as doc_repo
+
+    merged = list(documents)
+    have = {norm_key(d.get("type") or d.get("name")) for d in merged if isinstance(d, dict)}
+    try:
+        with SessionLocal() as db:
+            for row in doc_repo.list_documents(db, case_id=case_id):
+                key = doc_repo.requirement_key(row)
+                if key and key not in have:
+                    merged.append({"type": row.type, "name": row.name, "status": row.status})
+    except Exception as exc:  # noqa: BLE001 — the plan matters more than the overlay
+        print(
+            f"[checklist] _merge_saved_requirements failed for {case_id}: {exc!r}",
+            file=sys.stderr,
+        )
+    return merged
+
+
 def checklist(state: GraphState) -> dict:
     import sys
     dep_graph = state.get("dependency_graph", {}) or {}
@@ -286,10 +330,17 @@ def checklist(state: GraphState) -> dict:
         for sid in order
     }
 
+    # Merge in what the citizen already told us they hold. replace_steps wipes
+    # and reinserts every step, so without this a plan regeneration silently
+    # forgets every "I have it" and every completed sub-goal.
+    documents = _merge_saved_requirements(
+        str(state.get("case_id", "")), state.get("documents", []) or []
+    )
+
     items, progress = compose_checklist(
         dep_graph,
         state.get("eligibility", {}) or {},
-        state.get("documents", []) or [],
+        documents,
         steps_by_service,
     )
 

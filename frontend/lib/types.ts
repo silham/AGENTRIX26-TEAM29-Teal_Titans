@@ -1,9 +1,23 @@
 // ── Backend response types (mirror backend/app/schemas/) ─────────────────
 
 export type StepStatus = "pending" | "active" | "completed" | "locked" | "skipped";
-export type DocStatus  = "missing" | "accepted" | "rejected" | "incomplete" | "needs_verification";
 export type CaseStatus = "in_progress" | "completed" | "cancelled";
 export type Language   = "en" | "si" | "ta";
+
+/**
+ * "confirmed" = the citizen told us they hold it (we collect no documents).
+ * "accepted"  = legacy: a file was uploaded and machine-verified.
+ * Both mean satisfied; they are distinct so the UI never claims a verification
+ * that never happened.
+ */
+export type RequirementStatus =
+  | "missing" | "confirmed" | "accepted" | "rejected" | "incomplete" | "needs_verification";
+
+/** Statuses meaning the citizen has the item. Mirrors SATISFIED_STATUSES on the backend. */
+export const SATISFIED: ReadonlySet<RequirementStatus> = new Set<RequirementStatus>([
+  "confirmed",
+  "accepted",
+]);
 
 export interface Step {
   id: string;
@@ -14,14 +28,26 @@ export interface Step {
   depends_on: string[];
   source_url?: string;
   reason?: string;
+  /** Requirement key this step obtains; confirming that requirement completes it. */
+  fulfills?: string | null;
 }
 
-export interface Document {
+/** Something the citizen needs in order to complete a procedure. */
+export interface Requirement {
   id: string;
   name: string;
   type?: string;
-  status: DocStatus;
+  status: RequirementStatus;
   issues: string[];
+}
+
+/** A plan spawned from one of a case's requirements ("How to get it?"). */
+export interface SubGoal {
+  id: string;
+  goal: string;
+  status: CaseStatus;
+  progress: number;
+  parent_requirement_key?: string | null;
 }
 
 export interface Case {
@@ -35,8 +61,11 @@ export interface Case {
   created_at: string;
   updated_at: string;
   steps: Step[];
-  documents?: Document[];
+  /** Wire name stays `documents`; the UI calls these Requirements. */
+  documents?: Requirement[];
   citations?: Citation[];
+  sub_goals?: SubGoal[];
+  parent?: { id: string; goal: string } | null;
 }
 
 export interface AgentLog {

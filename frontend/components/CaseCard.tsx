@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Trash2 } from "lucide-react";
+import { ArrowRight, CornerUpLeft, Trash2 } from "lucide-react";
 import type { Case } from "@/lib/types";
 
 interface Props {
@@ -22,6 +22,18 @@ export default function CaseCard({ case_: c, index, onDelete }: Props) {
       transition={{ delay: index * 0.07 }}
       className="rounded-2xl border border-(--border) bg-white p-4 shadow-sm"
     >
+      {/* Sub-goals stay in the main list so they can't be lost, but say what
+          they belong to. A sibling of the card's own link, never nested in it. */}
+      {c.parent && (
+        <Link
+          href={`/cases/${c.parent.id}`}
+          className="mb-1.5 flex items-center gap-1 text-xs font-medium text-(--muted-fg) hover:text-(--primary) transition-colors"
+        >
+          <CornerUpLeft size={11} className="shrink-0" />
+          <span className="line-clamp-1">Part of: {c.parent.goal}</span>
+        </Link>
+      )}
+
       {/* Goal */}
       <p className="text-base font-semibold leading-snug text-(--foreground) line-clamp-2">
         {c.goal}

@@ -11,6 +11,22 @@ from sqlalchemy.orm import Session
 from app.db.models import Document
 
 
+def norm_key(value: str | None) -> str:
+    """Canonical spelling of a requirement key.
+
+    One definition shared by ``Document.type``, ``Step.fulfills`` and
+    ``Case.parent_requirement_key`` — these three must agree for "I have it" to
+    find its step and for a sub-goal to find its requirement. Previously each
+    caller rolled its own normaliser, which is how keys drift apart.
+    """
+    return "_".join(str(value or "").strip().lower().split())
+
+
+def requirement_key(doc: Document) -> str:
+    """The requirement key a document row represents (type, else its name)."""
+    return norm_key(doc.type or doc.name)
+
+
 def list_documents(db: Session, *, case_id: UUID | str) -> list[Document]:
     """Return all documents belonging to a case."""
     return list(db.scalars(select(Document).where(Document.case_id == str(case_id))))

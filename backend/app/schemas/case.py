@@ -17,6 +17,16 @@ class StepStatusUpdate(BaseModel):
     status: Literal["completed", "pending"]
 
 
+class RequirementStatusUpdate(BaseModel):
+    """Citizen self-declares that they hold a requirement, or takes it back.
+
+    'confirmed' is deliberately not 'accepted': nothing was uploaded and nothing
+    was verified — the citizen simply told us they have it.
+    """
+
+    status: Literal["confirmed", "missing"]
+
+
 class StepOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -28,6 +38,8 @@ class StepOut(BaseModel):
     depends_on: list = []
     source_url: str | None = None
     reason: str | None = None
+    # Requirement key this step obtains; confirming that requirement completes it.
+    fulfills: str | None = None
 
 
 class DocumentOut(BaseModel):
@@ -69,7 +81,32 @@ class CitationOut(BaseModel):
     score: float | None = None
 
 
+class ParentRef(BaseModel):
+    """The case a sub-goal belongs to, for the "Part of: …" link back."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    goal: str
+
+
+class SubGoalOut(BaseModel):
+    """A plan spawned from one of this case's requirements."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    goal: str
+    status: str
+    progress: int
+    parent_requirement_key: str | None = None
+
+
 class CaseDetail(CaseOut):
     steps: list[StepOut] = []
     documents: list[DocumentOut] = []
     citations: list[CitationOut] = []
+    # Flat, not nested CaseDetail — a sub-goal's own sub-goals are fetched by
+    # opening it, so the response stays a fixed depth.
+    sub_goals: list[SubGoalOut] = []
+    parent: ParentRef | None = None

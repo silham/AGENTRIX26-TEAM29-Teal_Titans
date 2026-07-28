@@ -1,21 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, use } from "react";
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Upload, Loader2, FileText, CheckSquare, CheckCircle2, Play, RefreshCw,
+  ArrowLeft, CornerUpLeft, Loader2, ListChecks, CheckSquare, CheckCircle2, Play, RefreshCw,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import WorkflowStep from "@/components/WorkflowStep";
-import DocumentChecklist from "@/components/DocumentChecklist";
+import RequirementChecklist from "@/components/RequirementChecklist";
 import ExplainPanel from "@/components/ExplainPanel";
 import CitationList from "@/components/CitationList";
 import { api } from "@/lib/api";
-import type { Case, Step, Document } from "@/lib/types";
+import type { Case, Requirement, Step } from "@/lib/types";
+import { SATISFIED } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
-type Tab = "steps" | "documents";
+type Tab = "steps" | "requirements";
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id }   = use(params);
@@ -25,10 +27,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const [tab,      setTab]     = useState<Tab>("steps");
   const [explain,  setExplain] = useState<Step | null>(null);
   const [loading,  setLoading] = useState(true);
-  const [uploadFor, setUploadFor] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [busyReq,  setBusyReq] = useState<string | null>(null);
   const [togglingStep, setTogglingStep] = useState<string | null>(null);
-  const uploadRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.getCase(id)
@@ -36,25 +36,30 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       .catch(() => setLoading(false));
   }, [id]);
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
+  // "I have it" / undo. The response is the recomputed case, so steps,
+  // progress and the requirement all update in one round trip.
+  async function markRequirement(req: Requirement, next: "confirmed" | "missing") {
+    setBusyReq(req.id);
     try {
-      await api.uploadDocument(id, file, uploadFor || file.name);
-      // Re-fetch: the backend verified the upload (Gemini Vision / OCR) and
-      // updated the document row — show the real verdict.
-      const updated = await api.getCase(id);
-      setCase(updated);
-    } catch { /* keep current view; user can retry */ }
-    e.target.value = "";
-    setUploadFor(null);
-    setUploading(false);
+      setCase(await api.setRequirement(id, req.id, next));
+    } catch {
+      // leave the UI unchanged; the refresh button re-syncs on demand
+    } finally {
+      setBusyReq(null);
+    }
   }
 
-  function openUpload(name: string) {
-    setUploadFor(name);
-    uploadRef.current?.click();
+  // "How to get it?" — a brand-new plan has no steps yet and needs the agent
+  // graph to run; an existing one goes straight to its checklist.
+  async function startSubGoal(req: Requirement) {
+    setBusyReq(req.id);
+    try {
+      const sub = await api.createSubGoal(id, req.id);
+      router.push(sub.steps.length === 0 ? `/cases/${sub.id}/processing` : `/cases/${sub.id}`);
+    } catch {
+      setBusyReq(null);
+    }
+    // deliberately no finally: stay busy through the navigation
   }
 
   async function toggleStep(step: Step) {
@@ -105,20 +110,22 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const nextStep        = case_.steps.find((s) => s.status === "active" || s.status === "pending");
   const allDone         = case_.steps.length > 0 &&
     case_.steps.every((s) => s.status === "completed" || s.status === "skipped");
-  const docs            = case_.documents ?? [];
+  const requirements    = case_.documents ?? [];
   const citations       = case_.citations ?? [];
-  const missingDocCount = docs.filter((d) => d.status === "missing").length;
+  const subGoals        = case_.sub_goals ?? [];
+  // Everything still outstanding — which correctly includes legacy
+  // rejected/incomplete rows, not just "missing".
+  const openReqCount    = requirements.filter((r) => !SATISFIED.has(r.status)).length;
 
   const TABS = [
-    { key: "steps" as Tab,     label: "Your Steps", Icon: CheckSquare, badge: 0 },
-    { key: "documents" as Tab, label: "Documents",  Icon: FileText,    badge: missingDocCount },
+    { key: "steps" as Tab,        label: "Your Steps",   Icon: CheckSquare, badge: 0 },
+    { key: "requirements" as Tab, label: "Requirements", Icon: ListChecks,  badge: openReqCount },
   ];
 
   return (
     <div className="flex min-h-dvh flex-col bg-(--surface)">
       <Navbar />
       <ExplainPanel step={explain} onClose={() => setExplain(null)} />
-      <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload} accept="image/*,.pdf" />
 
       <main className="flex-1 px-4 py-4">
         <div className="mx-auto max-w-lg">
@@ -141,6 +148,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             )}>
               {case_.status === "completed" ? "Completed" : "In Progress"}
             </span>
+
+            {/* This plan exists to obtain one requirement of another plan. */}
+            {case_.parent && (
+              <Link
+                href={`/cases/${case_.parent.id}`}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-(--muted-fg) hover:text-(--primary) transition-colors"
+              >
+                <CornerUpLeft size={12} className="shrink-0" />
+                <span className="line-clamp-1">Part of: {case_.parent.goal}</span>
+              </Link>
+            )}
 
             <h1 className="text-lg font-bold leading-snug text-(--foreground)">
               {case_.goal}
@@ -200,12 +218,6 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   ⛔ Not Eligible — see steps below
                 </div>
               )}
-              <button
-                onClick={() => openUpload("")}
-                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-(--border) bg-white px-4 py-3 text-sm font-medium text-(--foreground) hover:border-(--primary) transition-colors"
-              >
-                <Upload size={15} /> Upload
-              </button>
               <button
                 onClick={() => { api.getCase(id).then(setCase).catch(() => {}); }}
                 className="flex items-center justify-center rounded-xl border border-(--border) bg-white px-3 py-3 text-(--muted-fg) hover:text-(--foreground) transition-colors"
@@ -291,26 +303,66 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </motion.div>
             )}
 
-            {tab === "documents" && (
+            {tab === "requirements" && (
               <motion.div
-                key="documents"
+                key="requirements"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                {docs.length === 0 ? (
+                {requirements.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-(--border) bg-white p-10 text-center">
-                    <FileText size={36} className="mx-auto mb-3 text-(--muted-fg)" />
-                    <p className="text-sm text-(--muted-fg)">No documents identified yet.</p>
+                    <ListChecks size={36} className="mx-auto mb-3 text-(--muted-fg)" />
+                    <p className="text-sm text-(--muted-fg)">No requirements identified yet.</p>
                     <button
                       onClick={() => router.push(`/cases/${id}/processing`)}
                       className="mt-4 text-sm font-semibold text-(--primary) underline"
                     >
-                      Generate plan to see documents →
+                      Generate plan to see requirements →
                     </button>
                   </div>
                 ) : (
-                  <DocumentChecklist documents={docs} onUpload={openUpload} />
+                  <RequirementChecklist
+                    requirements={requirements}
+                    subGoals={subGoals}
+                    onHaveIt={markRequirement}
+                    onHowToGet={startSubGoal}
+                    busyId={busyReq}
+                  />
+                )}
+
+                {/* Plans started from these requirements. They live here rather
+                    than in a third tab because they are requirement-derived. */}
+                {subGoals.length > 0 && (
+                  <div className="mt-6 border-t border-(--border) pt-5">
+                    <p className="mb-3 text-sm font-bold text-(--foreground)">
+                      Plans you started for these
+                    </p>
+                    <div className="space-y-2">
+                      {subGoals.map((g) => (
+                        <Link
+                          key={g.id}
+                          href={`/cases/${g.id}`}
+                          className="block rounded-2xl border border-(--border) bg-white p-4 hover:border-(--primary) transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="line-clamp-1 text-sm font-semibold text-(--foreground)">
+                              {g.goal}
+                            </p>
+                            <span className="shrink-0 text-xs font-bold text-(--primary)">
+                              {g.progress}%
+                            </span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-(--surface)">
+                            <div
+                              className="h-full rounded-full bg-(--primary) transition-all"
+                              style={{ width: `${g.progress}%` }}
+                            />
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </motion.div>
             )}

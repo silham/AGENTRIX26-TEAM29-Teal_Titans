@@ -25,26 +25,31 @@
     {
       "title": "Check your driving licence expiry date",
       "description": "Confirm the expiry date so you renew within the permitted window and avoid penalties.",
+      "fulfills": "current_driving_license",
       "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
     },
     {
       "title": "Obtain a medical fitness certificate",
       "description": "Get a medical certificate of fitness to drive from the National Transport Medical Institute (NTMI) or an authorised medical officer.",
+      "fulfills": "medical_certificate",
       "source_url": "http://www.ntmi.lk/"
     },
     {
       "title": "Prepare your NIC",
       "description": "Bring your valid National Identity Card for identity verification.",
+      "fulfills": "valid_nic",
       "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
     },
     {
       "title": "Fill the renewal application form",
       "description": "Complete the driving licence renewal application with current details.",
+      "fulfills": "application_form",
       "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
     },
     {
       "title": "Visit the RMV / authorised centre and pay the fee",
       "description": "Submit your application with the medical certificate and NIC at the Department of Motor Traffic or an authorised centre, and pay the renewal fee.",
+      "fulfills": "application_fee",
       "source_url": "https://www.dmt.gov.lk/index.php?lang=en"
     },
     {

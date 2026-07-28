@@ -37,6 +37,20 @@ class Case(Base):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     current_step_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     language: Mapped[str] = mapped_column(String(8), default="en")
+
+    # Sub-goal link: this case exists to obtain one requirement of another case
+    # (created by "How to get it?" on the parent's Requirements tab).
+    #
+    # SET NULL, not CASCADE: deleting a passport plan must not destroy the
+    # citizen's separate NIC plan, which stands on its own.
+    parent_case_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # The normalised requirement key this sub-goal obtains — NOT a documents FK.
+    # _sync_documents deletes and recreates 'missing' rows with fresh UUIDs on
+    # every graph re-run, so a row reference would dangle; the key is stable.
+    # Same spelling as Document.type and Step.fulfills.
+    parent_requirement_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Sources behind this plan, written by the knowledge node. Persisted rather
     # than left in the SSE payload so the citizen still sees them when they come
     # back to the plan days later. Each entry: {title, source_url, origin, snippet?}
@@ -50,6 +64,13 @@ class Case(Base):
     documents: Mapped[list[Document]] = relationship(back_populates="case", cascade="all, delete-orphan")
     logs: Mapped[list[AgentLog]] = relationship(back_populates="case", cascade="all, delete-orphan")
     messages: Mapped[list[Message]] = relationship(back_populates="case", cascade="all, delete-orphan")
+
+    # Deliberately NO cascade="all, delete-orphan" here, unlike the children
+    # above: a sub-goal is a plan in its own right and outlives its parent.
+    parent: Mapped[Case | None] = relationship(
+        "Case", remote_side=[id], back_populates="sub_goals"
+    )
+    sub_goals: Mapped[list[Case]] = relationship(back_populates="parent")
 
 
 class Step(Base):
@@ -65,6 +86,10 @@ class Step(Base):
     depends_on: Mapped[list] = mapped_column(JSON, default=list)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Requirement key this step exists to obtain, e.g. "police_report". Lets
+    # "I have it" on the Requirements tab complete the step that gets that item.
+    # Width mirrors Document.type — they hold the same normalised key.
+    fulfills: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     case: Mapped[Case] = relationship(back_populates="steps")
 

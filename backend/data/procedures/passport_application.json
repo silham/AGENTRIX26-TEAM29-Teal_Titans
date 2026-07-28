@@ -25,26 +25,31 @@
     {
       "title": "Confirm you hold a valid NIC",
       "description": "Your National Identity Card number must be valid and the card available. If lost, obtain a duplicate NIC first.",
+      "fulfills": "valid_nic",
       "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=141&Itemid=186&lang=en"
     },
     {
       "title": "Prepare your birth certificate",
       "description": "An original birth certificate is required as supporting proof of identity and citizenship.",
+      "fulfills": "birth_certificate",
       "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=141&Itemid=186&lang=en"
     },
     {
       "title": "Obtain passport-size photographs",
       "description": "Provide colour photographs taken against a white background meeting the published specification (35mm x 45mm).",
+      "fulfills": "passport_photos",
       "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=147&Itemid=190&lang=en"
     },
     {
       "title": "Fill the passport application form (Form K-35-A)",
       "description": "Complete the official application form. It must be certified by an authorised officer (e.g. Grama Niladhari).",
+      "fulfills": "application_form_k35a",
       "source_url": "https://eservices.immigration.gov.lk/"
     },
     {
       "title": "Pay the application fee",
       "description": "Pay the applicable normal or one-day service fee at the bank counter or online portal.",
+      "fulfills": "application_fee",
       "source_url": "https://www.immigration.gov.lk/web/index.php?option=com_content&view=article&id=147&Itemid=190&lang=en"
     },
     {

@@ -34,6 +34,7 @@ from typing import Any
 from app.graph.nodes.audit import audit
 from app.graph.state import GraphState
 from app.rag import rules
+from app.schemas.document import SATISFIED_STATUSES
 
 
 def _satisfied_requirements(state: GraphState) -> set[str]:
@@ -52,7 +53,13 @@ def _satisfied_requirements(state: GraphState) -> set[str]:
         if isinstance(val, list):
             have.update(str(v) for v in val)
     for doc in state.get("documents") or []:
-        if isinstance(doc, dict) and doc.get("status") == "accepted" and doc.get("type"):
+        # "confirmed" counts as well as "accepted": a citizen who told us they
+        # hold a valid NIC must not get a duplicate-NIC prerequisite bolted on.
+        if (
+            isinstance(doc, dict)
+            and doc.get("status") in SATISFIED_STATUSES
+            and doc.get("type")
+        ):
             have.add(str(doc["type"]))
     return have
 
@@ -77,11 +84,9 @@ def _missing_requirements(state: GraphState) -> set[str]:
 
 # A missing requirement that a known rules-based procedure can produce. Lets a
 # custom goal pull in real prerequisite workflows (e.g. lost NIC → duplicate NIC
-# steps come first) exactly like the rules path does.
-_REQ_FULFILLED_BY: dict[str, str] = {
-    "valid_nic": "duplicate_nic",
-    "birth_certificate": "birth_certificate_copy",
-}
+# steps come first) exactly like the rules path does. Now lives in the rules
+# layer because "How to get it?" needs the same mapping to word its sub-goal.
+_REQ_FULFILLED_BY = rules.REQUIREMENT_SERVICE
 
 
 def _custom_dependency(custom_steps: list[dict], missing: set[str]) -> dict[str, Any]:

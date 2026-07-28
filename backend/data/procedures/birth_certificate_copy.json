@@ -15,7 +15,7 @@
       "title": "Locate the birth registration details",
       "description": "Find the birth entry number and the Divisional Secretariat where the birth was registered. This information is on the original birth certificate or known to the family.",
       "source_url": "https://www.rgd.gov.lk/web/index.php?option=com_content&view=article&id=57&Itemid=71&lang=en",
-      "fulfills": null
+      "fulfills": "original_birth_entry_number"
     },
     {
       "title": "Prepare your National Identity Card (NIC)",

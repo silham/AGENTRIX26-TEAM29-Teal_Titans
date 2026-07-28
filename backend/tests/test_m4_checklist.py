@@ -87,7 +87,7 @@ def test_node_skips_persistence_without_case_id(monkeypatch):
     assert result["logs"][-1]["agent"] == "checklist"
 
 
-def test_persistence_strips_ui_only_keys(monkeypatch):
+def test_persistence_strips_service_but_keeps_fulfills(monkeypatch):
     captured: dict = {}
 
     class _FakeDB:
@@ -115,4 +115,9 @@ def test_persistence_strips_ui_only_keys(monkeypatch):
     assert captured["steps"], "replace_steps should have been called"
     for row in captured["steps"]:
         assert set(row).issubset(_STEP_COLUMNS)
-        assert "service" not in row and "fulfills" not in row
+        # `service` stays UI-only, but `fulfills` is now persisted: "I have it"
+        # on the Requirements tab needs it to find the step to complete.
+        assert "service" not in row
+    assert any(row.get("fulfills") for row in captured["steps"]), (
+        "at least one step should carry its requirement key through to the DB"
+    )

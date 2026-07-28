@@ -17,17 +17,24 @@ def _types(reminders: list[dict]) -> set[str]:
 
 
 def test_missing_document_reminder():
+    """Wording is "get", not "upload" — documents are no longer collected."""
     docs = [{"name": "NIC", "status": "missing"}]
     reminders = derive_reminders([], docs, {}, today=_TODAY)
     assert "missing_document" in _types(reminders)
-    assert "upload NIC" in reminders[0]["message"]
+    assert "get NIC" in reminders[0]["message"]
 
 
-def test_rejected_document_says_fix():
+def test_rejected_document_says_sort_out():
     docs = [{"name": "Passport Photo", "status": "rejected"}]
     reminders = derive_reminders([], docs, {}, today=_TODAY)
     msg = next(r["message"] for r in reminders if r["type"] == "missing_document")
-    assert "fix Passport Photo" in msg
+    assert "sort out Passport Photo" in msg
+
+
+def test_confirmed_document_needs_no_reminder():
+    docs = [{"name": "NIC", "status": "confirmed"}]
+    reminders = derive_reminders([], docs, {}, today=_TODAY)
+    assert "missing_document" not in _types(reminders)
 
 
 def test_next_action_from_active_step():

@@ -181,24 +181,20 @@ export const api = {
     return () => ctrl.abort();
   },
 
-  // ── Documents ─────────────────────────────────────────────────────────
-  uploadDocument: (caseId: string, file: File, expectedName: string) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("case_id", caseId);
-    fd.append("expected_name", expectedName);
-    return fetch(`${BACKEND}/documents`, {
-      method: "POST",
-      headers: authHeaders() as Record<string, string>,
-      body: fd,
-    }).then((r) => r.json());
-  },
+  // ── Requirements ──────────────────────────────────────────────────────
+  // We collect no citizen documents: a requirement is satisfied by the citizen
+  // saying they hold it, or by finishing a sub-goal plan that obtains it.
 
-  deleteDocument: (docId: string) =>
-    fetch(`${BACKEND}/documents/${docId}`, {
-      method: "DELETE",
-      headers: authHeaders() as Record<string, string>,
+  /** "I have it" (confirmed) or undo (missing). Returns the recomputed case. */
+  setRequirement: (caseId: string, reqId: string, status: "confirmed" | "missing") =>
+    request<Case>(`/cases/${caseId}/requirements/${reqId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
     }),
+
+  /** "How to get it?" — start (or reopen) a plan for obtaining this requirement. */
+  createSubGoal: (caseId: string, reqId: string) =>
+    request<Case>(`/cases/${caseId}/requirements/${reqId}/sub-goal`, { method: "POST" }),
 
   // ── Admin knowledge base ──────────────────────────────────────────────
   // Every call here 403s for non-admins; the UI gate is cosmetic (see isAdmin).
@@ -222,8 +218,7 @@ export const api = {
       ),
 
     // Raw fetch, not request<T>: request<T> force-sets Content-Type to
-    // application/json, which destroys the multipart boundary. Same reason
-    // uploadDocument above bypasses it.
+    // application/json, which would destroy the multipart boundary.
     upload: async (file: File, meta: { title?: string; sourceUrl?: string }) => {
       const fd = new FormData();
       fd.append("file", file);
