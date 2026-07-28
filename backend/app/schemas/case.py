@@ -54,6 +54,22 @@ class CaseOut(BaseModel):
     updated_at: datetime
 
 
+class CitationOut(BaseModel):
+    """A source behind the plan.
+
+    ``origin`` is the trust boundary the UI renders: "rules" = verified official
+    procedure, "uploaded_document" = a passage from the admin knowledge base.
+    ``source_url`` is None for uploaded documents with no public URL.
+    """
+
+    title: str
+    source_url: str | None = None
+    origin: str = "rules"
+    snippet: str | None = None
+    score: float | None = None
+
+
 class CaseDetail(CaseOut):
     steps: list[StepOut] = []
     documents: list[DocumentOut] = []
+    citations: list[CitationOut] = []

@@ -10,6 +10,7 @@ import Navbar from "@/components/Navbar";
 import WorkflowStep from "@/components/WorkflowStep";
 import DocumentChecklist from "@/components/DocumentChecklist";
 import ExplainPanel from "@/components/ExplainPanel";
+import CitationList from "@/components/CitationList";
 import { api } from "@/lib/api";
 import type { Case, Step, Document } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -105,6 +106,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const allDone         = case_.steps.length > 0 &&
     case_.steps.every((s) => s.status === "completed" || s.status === "skipped");
   const docs            = case_.documents ?? [];
+  const citations       = case_.citations ?? [];
   const missingDocCount = docs.filter((d) => d.status === "missing").length;
 
   const TABS = [
@@ -276,6 +278,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                         busy={togglingStep === step.id}
                       />
                     ))}
+                  </div>
+                )}
+
+                {/* Where the plan's information came from. Official procedure and
+                    supporting uploaded documents are shown separately on purpose. */}
+                {citations.length > 0 && (
+                  <div className="mt-6 border-t border-(--border) pt-5">
+                    <CitationList citations={citations} />
                   </div>
                 )}
               </motion.div>

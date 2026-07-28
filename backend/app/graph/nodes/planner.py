@@ -95,6 +95,21 @@ Rules:
 - Use null for source_url when unsure — do NOT invent URLs.\
 """
 
+# Appended to _CUSTOM_SYSTEM only when the knowledge base returned passages.
+_CUSTOM_SYSTEM_RAG = """
+
+GROUNDING RULES (official source excerpts are provided in the user message):
+- The excerpts are extracts from official Sri Lankan government documents uploaded
+  by an administrator. Treat them as the primary, authoritative basis for your answer.
+- Every "source_url" you emit MUST be copied VERBATIM from one of the provided
+  excerpts, or be null. Never invent, guess, abbreviate or modify a URL.
+- Where the excerpts contradict your general knowledge, the excerpts win.
+- Where the excerpts do not cover part of the goal, still give the step, but set
+  its source_url to null.
+- Add "grounded": true or false to each step — true ONLY when that step's content
+  came from an excerpt.\
+"""
+
 # ── Keyword fallback (no Groq key needed) ────────────────────────────────────
 
 _KEYWORD_MAP: list[tuple[list[str], str]] = [
@@ -177,21 +192,81 @@ def _keyword_plan(goal: str) -> dict:
     }
 
 
-def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
+_MAX_CONTEXT_PASSAGES = 5
+_MAX_PASSAGE_CHARS = 1200
+
+
+def _retrieval_context(goal: str) -> tuple[str, list[dict]]:
+    """Fetch knowledge-base passages for a goal and render them for the prompt.
+
+    Returns (context_block, passages). Empty on any failure — an unavailable
+    knowledge base must degrade to the ungrounded prompt, not break planning.
+    """
+    import sys
+
+    from app.rag import retriever
+
+    try:
+        passages = retriever.search(goal, k=_MAX_CONTEXT_PASSAGES)
+    except Exception as exc:  # noqa: BLE001 — retrieval is best-effort here
+        print(f"[planner] retrieval failed: {exc!r}", file=sys.stderr)
+        return "", []
+
+    blocks = [
+        f"[{i}] title: {p.get('title') or 'Untitled'}\n"
+        f"source_url: {p.get('source_url') or 'NONE'}\n"
+        f"{(p.get('content') or '')[:_MAX_PASSAGE_CHARS]}"
+        for i, p in enumerate(passages, 1)
+    ]
+    return "\n\n".join(blocks), passages
+
+
+def _strip_ungrounded_urls(steps: list[dict], passages: list[dict]) -> None:
+    """Null out any source_url the model did not copy from a retrieved passage.
+
+    The prompt asks for this, but prompts are not guarantees — the pre-existing
+    "do NOT invent URLs" instruction was already unenforced. This is the actual
+    control. Only applied when we HAVE passages, so the zero-corpus path keeps
+    its previous behaviour.
+    """
+    import sys
+
+    allowed = {p["source_url"] for p in passages if p.get("source_url")}
+    if not allowed:
+        return
+    for step in steps:
+        url = step.get("source_url")
+        if url and url not in allowed:
+            print(f"[planner] dropped ungrounded source_url {url!r}", file=sys.stderr)
+            step["source_url"] = None
+
+
+def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str], list[dict]]:
     """Ask Groq to generate a full plan (steps + requirements) for an unknown goal.
 
-    Returns (steps, requirements). steps are compatible with rules.steps() output.
-    Both lists are empty on failure.
+    Grounds the plan in admin-uploaded knowledge-base documents when the
+    retriever returns anything, so a goal no procedure JSON covers is answered
+    from real government sources instead of model memory.
+
+    Returns (steps, requirements, passages). steps are compatible with
+    rules.steps() output. All empty on failure.
     """
     import sys
     if not settings.groq_api_key:
-        return [], []
+        return [], [], []
     from app.llm.groq_client import chat
+
+    context, passages = _retrieval_context(goal)
+    system = _CUSTOM_SYSTEM + (_CUSTOM_SYSTEM_RAG if context else "")
+    user = f"Citizen goal: {goal}"
+    if context:
+        user += f"\n\nOFFICIAL SOURCE EXCERPTS:\n{context}"
+
     try:
         raw = chat(
             [
-                {"role": "system", "content": _CUSTOM_SYSTEM},
-                {"role": "user", "content": f"Citizen goal: {goal}"},
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
             ],
             json_mode=True,
         )
@@ -202,6 +277,7 @@ def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
                 "title": str(s.get("title", "")),
                 "description": s.get("description") or None,
                 "source_url": s.get("source_url") or None,
+                "grounded": bool(s.get("grounded")),
                 "fulfills": None,
                 "_service_name": data.get("service_name", "Custom Procedure"),
                 "_office": data.get("office", ""),
@@ -209,11 +285,12 @@ def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
             for s in raw_steps
             if s.get("title")
         ]
+        _strip_ungrounded_urls(steps, passages)
         requirements = [str(r) for r in (data.get("requirements") or []) if r]
-        return steps, requirements
+        return steps, requirements, passages
     except Exception as exc:
         print(f"[planner] _generate_custom_plan failed: {exc!r}", file=sys.stderr)
-        return [], []
+        return [], [], passages
 
 
 def planner(state: GraphState) -> dict:
@@ -223,6 +300,7 @@ def planner(state: GraphState) -> dict:
     result: dict = {}
     custom_steps: list[dict] = []
     custom_requirements: list[str] = []
+    passages: list[dict] = []  # knowledge-base passages, reused by the knowledge node
     groq_detected = False       # True only when Groq itself produced the services
     groq_said_none = False      # Groq deliberately answered "no known service fits"
     groq_intent: dict | None = None  # Groq's have/missing/lost facts, kept across fallbacks
@@ -273,7 +351,7 @@ def planner(state: GraphState) -> dict:
 
     # ── Custom Groq-generated plan for goals with no matching service ─────────
     if not result.get("detected_services"):
-        custom_steps, custom_requirements = _generate_custom_plan(goal)
+        custom_steps, custom_requirements, passages = _generate_custom_plan(goal)
         if custom_steps:
             result["detected_services"] = ["custom_procedure"]
             if not result.get("intent"):
@@ -292,11 +370,13 @@ def planner(state: GraphState) -> dict:
         else 0.8 if custom_steps \
         else 0.7
 
+    grounded = sum(1 for s in custom_steps if s.get("grounded"))
     log_update = audit(
         state,
         agent="planner",
         decision=f"Detected services: {services}"
-                 + (" (custom Groq plan)" if custom_steps else ""),
+                 + (" (custom Groq plan)" if custom_steps else "")
+                 + (f", {grounded} step(s) grounded in uploaded documents" if grounded else ""),
         reason=goal,
         confidence=confidence,
     )
@@ -306,5 +386,6 @@ def planner(state: GraphState) -> dict:
         "intent": result.get("intent", {}),
         "custom_steps": custom_steps,
         "custom_requirements": custom_requirements,
+        "retrieved_passages": passages,
         **log_update,
     }

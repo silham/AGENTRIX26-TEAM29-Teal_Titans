@@ -16,7 +16,7 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-EMBED_DIM = 768  # Gemini text-embedding-004
+EMBED_DIM = 768  # gemini-embedding-001 at output_dimensionality=768
 
 
 class Base(DeclarativeBase):
@@ -37,6 +37,10 @@ class Case(Base):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     current_step_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     language: Mapped[str] = mapped_column(String(8), default="en")
+    # Sources behind this plan, written by the knowledge node. Persisted rather
+    # than left in the SSE payload so the citizen still sees them when they come
+    # back to the plan days later. Each entry: {title, source_url, origin, snippet?}
+    citations: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -108,18 +112,72 @@ class Message(Base):
     case: Mapped[Case] = relationship(back_populates="messages")
 
 
+class KnowledgeDocument(Base):
+    """A government document backing the RAG knowledge base.
+
+    Created either by an admin upload (POST /admin/knowledge) or by the corpus
+    CLI (`python -m app.rag.ingest`, uploaded_by="corpus-cli"), so both sources
+    are listed, reindexed and deleted through the same admin surface.
+    """
+
+    __tablename__ = "knowledge_documents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    filename: Mapped[str] = mapped_column(Text)
+    title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mime: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    char_count: Mapped[int] = mapped_column(Integer, default=0)
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    # text | pdf_text | pdf_ocr | pdf_embedded_image_ocr | docx | image_ocr
+    extraction_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # pending | processing | ready | failed
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_by: Mapped[str] = mapped_column(String(255), index=True)  # admin email
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    chunks: Mapped[list[DocChunk]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+
 class DocChunk(Base):
     """RAG corpus chunk (written via ingestion).
 
     Embedding is a real pgvector column on Postgres (enables cosine_distance
     search in retriever.py); on SQLite it degrades to Text and the retriever
-    returns [] gracefully.
+    short-circuits to [] with a warning.
+
+    ``embedding_model`` records which model produced the vector. This matters:
+    the local fallback is 384-dim zero-padded to 768, which is NOT in the same
+    vector space as Gemini's 768 — mixing them silently produces meaningless
+    rankings, so the retriever filters on this column.
     """
 
     __tablename__ = "doc_chunks"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    # Nullable so chunks ingested before the knowledge-base feature survive.
+    document_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("knowledge_documents.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, default=0)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     content: Mapped[str] = mapped_column(Text)
     embedding = mapped_column(Vector(EMBED_DIM).with_variant(Text, "sqlite"), nullable=True)
+    embedding_model: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    document: Mapped[KnowledgeDocument | None] = relationship(back_populates="chunks")

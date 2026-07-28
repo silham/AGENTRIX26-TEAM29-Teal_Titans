@@ -22,6 +22,9 @@ class GraphState(TypedDict, total=False):
     # Knowledge / RAG (M3)
     requirements: list[str]
     citations: list[dict[str, Any]]
+    # Knowledge-base passages retrieved by the planner, reused by the knowledge
+    # node so a run embeds the goal once rather than twice.
+    retrieved_passages: list[dict[str, Any]]
 
     # Dependency (M3)
     dependency_graph: dict[str, Any]

@@ -36,6 +36,7 @@ export interface Case {
   updated_at: string;
   steps: Step[];
   documents?: Document[];
+  citations?: Citation[];
 }
 
 export interface AgentLog {
@@ -44,6 +45,77 @@ export interface AgentLog {
   reason?: string;
   source_url?: string;
   confidence?: number;
+}
+
+// A source backing a step or answer. `origin` is the trust boundary:
+// "rules" = a verified government procedure URL from the JSON rules layer;
+// "uploaded_document" = a passage retrieved from the admin knowledge base.
+export interface Citation {
+  title: string;
+  source_url: string | null;
+  origin: "rules" | "uploaded_document";
+  snippet?: string;
+  score?: number;
+}
+
+// ── Admin knowledge base (mirrors backend/app/schemas/knowledge.py) ──────
+
+export type KnowledgeStatus = "pending" | "processing" | "ready" | "failed";
+
+export interface KnowledgeDoc {
+  id: string;
+  filename: string;
+  title: string | null;
+  source_url: string | null;
+  mime: string | null;
+  size_bytes: number;
+  page_count: number | null;
+  char_count: number;
+  chunk_count: number;
+  extraction_method: string | null;
+  embedding_model: string | null;
+  status: KnowledgeStatus;
+  error: string | null;
+  uploaded_by: string;
+  uploaded_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeListResponse {
+  documents: KnowledgeDoc[];
+  total: number;
+}
+
+export interface KnowledgeStats {
+  documents: number;
+  documents_by_status: Record<string, number>;
+  chunks: number;
+  retrieval: {
+    ok: boolean;
+    dialect: string;
+    active_model: string;
+    chunks: number;
+    chunks_by_model: Record<string, number>;
+    unstamped_chunks: number;
+    orphan_chunks: number;
+    error: string | null;
+  };
+}
+
+export interface KnowledgeSearchHit {
+  title: string | null;
+  source_url: string | null;
+  document_id: string | null;
+  chunk_index: number;
+  score: number;
+  snippet: string;
+}
+
+export interface KnowledgeSearchResponse {
+  query: string;
+  model: string;
+  min_score: number;
+  hits: KnowledgeSearchHit[];
 }
 
 // ── SSE event shape (mirrors backend/app/schemas/run.py) ─────────────────

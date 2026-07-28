@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Globe, LogOut, User } from "lucide-react";
+import { Database, Globe, LogOut, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import type { Language } from "@/lib/types";
 import { LANG_LABELS } from "@/lib/types";
-import { getStoredUser, isAuthenticated, signOut } from "@/lib/api";
+import { getStoredUser, isAdmin, isAuthenticated, signOut } from "@/lib/api";
 
 interface NavbarProps {
   language?: Language;
@@ -22,12 +22,14 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
   const [authed,     setAuthed]     = useState(false);
   const [userEmail,  setUserEmail]  = useState<string | null>(null);
   const [userName,   setUserName]   = useState<string | null>(null);
+  const [admin,      setAdmin]      = useState(false);
 
   // Read auth state on mount (sessionStorage is client-only)
   useEffect(() => {
     setAuthed(isAuthenticated());
     const u = getStoredUser();
     if (u) { setUserEmail(u.email); setUserName(u.name); }
+    setAdmin(isAdmin());
   }, []);
 
   function handleSignOut() {
@@ -35,6 +37,7 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
     setAuthed(false);
     setUserEmail(null);
     setUserName(null);
+    setAdmin(false);
     setUserOpen(false);
     router.push("/");
   }
@@ -148,6 +151,19 @@ export default function Navbar({ language = "en", onLanguageChange }: NavbarProp
                         <User size={15} className="text-(--muted-fg)" />
                         My Plans
                       </Link>
+
+                      {/* Shown only to admins. Cosmetic — /admin and every
+                          /admin/* API call are gated server-side by role. */}
+                      {admin && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setUserOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-3 text-sm text-(--foreground) hover:bg-(--surface) transition-colors"
+                        >
+                          <Database size={15} className="text-(--muted-fg)" />
+                          Knowledge Base
+                        </Link>
+                      )}
 
                       <button
                         onClick={handleSignOut}

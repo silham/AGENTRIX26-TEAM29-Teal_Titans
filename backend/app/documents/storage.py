@@ -87,6 +87,30 @@ async def upload_file(
 
 
 # ---------------------------------------------------------------------------
+# Read back
+# ---------------------------------------------------------------------------
+
+
+class StorageReadError(Exception):
+    """Raised when a stored file cannot be read back."""
+
+
+def read_file(storage_path: str) -> bytes:
+    """Return the bytes of a previously stored file.
+
+    Used by the knowledge-base ingestion worker, which re-reads the upload after
+    the request that stored it has already returned.
+    """
+    abs_path = Path(settings.storage_dir) / storage_path
+    try:
+        return abs_path.read_bytes()
+    except FileNotFoundError as exc:
+        raise StorageReadError(f"Stored file is missing: {storage_path}") from exc
+    except Exception as exc:
+        raise StorageReadError(f"Failed to read {storage_path}: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
 # Signed URL (local → direct path; Supabase in production)
 # ---------------------------------------------------------------------------
 

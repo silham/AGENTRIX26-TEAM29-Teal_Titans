@@ -1,4 +1,11 @@
-import type { Case, RunEvent } from "./types";
+import type {
+  Case,
+  KnowledgeDoc,
+  KnowledgeListResponse,
+  KnowledgeSearchResponse,
+  KnowledgeStats,
+  RunEvent,
+} from "./types";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 
@@ -7,6 +14,7 @@ const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 export interface StoredUser {
   email: string;
   name: string | null;
+  role?: "user" | "admin";
 }
 
 export function isAuthenticated(): boolean {
@@ -21,6 +29,19 @@ export function getStoredUser(): StoredUser | null {
   try { return JSON.parse(raw) as StoredUser; } catch { return null; }
 }
 
+/**
+ * Whether to SHOW admin UI. This is cosmetic only.
+ *
+ * The real boundary is the `role` claim inside the JWT, enforced by the
+ * backend's require_admin dependency. Someone who edits sessionStorage gets the
+ * page and a 403 from every call on it. Note there is no middleware.ts and
+ * adding one would not help: sessionStorage is never sent to the server, so a
+ * server-side gate would first require moving the token into a cookie.
+ */
+export function isAdmin(): boolean {
+  return getStoredUser()?.role === "admin";
+}
+
 export function signOut(): void {
   sessionStorage.removeItem("helplk_token");
   sessionStorage.removeItem("helplk_user");
@@ -33,9 +54,14 @@ export async function signIn(email: string, name?: string): Promise<void> {
     body: JSON.stringify({ email: email.trim(), name: name?.trim() || null }),
   });
   if (!res.ok) throw new Error(`Sign in failed: ${res.status}`);
-  const data = await res.json() as { token: string; email: string; name: string | null };
+  const data = await res.json() as {
+    token: string; email: string; name: string | null; role?: "user" | "admin";
+  };
   sessionStorage.setItem("helplk_token", data.token);
-  sessionStorage.setItem("helplk_user", JSON.stringify({ email: data.email, name: data.name }));
+  sessionStorage.setItem(
+    "helplk_user",
+    JSON.stringify({ email: data.email, name: data.name, role: data.role ?? "user" }),
+  );
 }
 
 // ── Token (internal) ───────────────────────────────────────────────────────
@@ -173,4 +199,46 @@ export const api = {
       method: "DELETE",
       headers: authHeaders() as Record<string, string>,
     }),
+
+  // ── Admin knowledge base ──────────────────────────────────────────────
+  // Every call here 403s for non-admins; the UI gate is cosmetic (see isAdmin).
+  admin: {
+    listKnowledge: () => request<KnowledgeListResponse>("/admin/knowledge"),
+
+    stats: () => request<KnowledgeStats>("/admin/knowledge/stats"),
+
+    reindex: (id: string) =>
+      request<KnowledgeDoc>(`/admin/knowledge/${id}/reindex`, { method: "POST" }),
+
+    remove: (id: string) =>
+      request<{ id: string; deleted: boolean; chunks_removed: number }>(
+        `/admin/knowledge/${id}`,
+        { method: "DELETE" },
+      ),
+
+    search: (q: string, k = 8) =>
+      request<KnowledgeSearchResponse>(
+        `/admin/search?q=${encodeURIComponent(q)}&k=${k}`,
+      ),
+
+    // Raw fetch, not request<T>: request<T> force-sets Content-Type to
+    // application/json, which destroys the multipart boundary. Same reason
+    // uploadDocument above bypasses it.
+    upload: async (file: File, meta: { title?: string; sourceUrl?: string }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (meta.title)     fd.append("title", meta.title);
+      if (meta.sourceUrl) fd.append("source_url", meta.sourceUrl);
+      const res = await fetch(`${BACKEND}/admin/knowledge`, {
+        method: "POST",
+        headers: authHeaders() as Record<string, string>,
+        body: fd,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((body as { detail?: string }).detail ?? `Upload failed (${res.status})`);
+      }
+      return body as KnowledgeDoc;
+    },
+  },
 };

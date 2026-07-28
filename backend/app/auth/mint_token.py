@@ -26,6 +26,9 @@ def mint(user_id: str = "dev-user-001", email: str | None = None, hours: int = 2
     }
     if email:
         payload["email"] = email
+        # Same allowlist the API uses, so this CLI can mint admin tokens for curl.
+        from app.auth.jwt import is_admin_email
+        payload["role"] = "admin" if is_admin_email(email) else "user"
     return jwt.encode(payload, settings.auth_secret, algorithm=settings.jwt_algorithm)
 
 

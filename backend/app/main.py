@@ -1,12 +1,36 @@
 """Owner: M1. FastAPI bootstrap. Registers EVERY member's router up front so no
 one has to edit this file when they implement their endpoints (scaffold contract)."""
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, cases, documents, forms, run
+from app.api import admin, auth, cases, documents, forms, run
 from app.config import settings
 
-app = FastAPI(title=settings.app_name)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Knowledge-base ingestion runs as a BackgroundTask, which dies with the
+    process. A restart mid-ingestion would otherwise strand rows in 'processing'
+    forever, with no way for an admin to retry them."""
+    try:
+        from app.db.session import SessionLocal
+        from app.repositories import knowledge as knowledge_repo
+
+        with SessionLocal() as db:
+            reset = knowledge_repo.fail_stale_processing(db)
+        if reset:
+            logger.warning("Reset %d knowledge document(s) stranded in 'processing'.", reset)
+    except Exception:  # noqa: BLE001 — never block startup on housekeeping
+        logger.warning("Could not sweep stranded ingestions.", exc_info=True)
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +46,7 @@ app.include_router(cases.router)      # M1
 app.include_router(run.router)        # M2
 app.include_router(documents.router)  # M5
 app.include_router(forms.router)      # M5
+app.include_router(admin.router)      # M6 — knowledge base (admin only)
 
 
 @app.get("/health", tags=["meta"])
