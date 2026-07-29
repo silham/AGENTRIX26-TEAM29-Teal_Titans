@@ -29,12 +29,12 @@ Writes ``dependency_graph`` into GraphState. Shape::
 """
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from app.graph.nodes.audit import audit
 from app.graph.state import GraphState
 from app.rag import rules
+from app.schemas.document import SATISFIED_STATUSES
 
 
 def _satisfied_requirements(state: GraphState) -> set[str]:
@@ -53,88 +53,83 @@ def _satisfied_requirements(state: GraphState) -> set[str]:
         if isinstance(val, list):
             have.update(str(v) for v in val)
     for doc in state.get("documents") or []:
-        if isinstance(doc, dict) and doc.get("status") == "accepted" and doc.get("type"):
+        # "confirmed" counts as well as "accepted": a citizen who told us they
+        # hold a valid NIC must not get a duplicate-NIC prerequisite bolted on.
+        if (
+            isinstance(doc, dict)
+            and doc.get("status") in SATISFIED_STATUSES
+            and doc.get("type")
+        ):
             have.add(str(doc["type"]))
     return have
 
 
 def _missing_requirements(state: GraphState) -> set[str]:
-    """Requirement keys explicitly flagged as missing/lost by the planner."""
+    """Requirement keys the citizen EXPLICITLY doesn't have (hard blockers).
+
+    Only ``lost`` qualifies — the LLM planner speculatively fills ``missing``
+    with things a procedure will probably need, and locking real steps behind
+    guesses dead-ends cases. Unconfirmed requirements are the eligibility
+    node's job (clarifying questions), not lock reasons.
+    """
     missing: set[str] = set()
     intent = state.get("intent") or {}
     if isinstance(intent, dict):
-        for key in ("missing_requirements", "missing", "lost"):
+        for key in ("missing_requirements", "lost"):
             val = intent.get(key)
             if isinstance(val, list):
                 missing.update(str(v) for v in val)
     return missing
 
 
-def _llm_custom_dependency(
-    goal: str,
-    custom_steps: list[dict],
-    missing: set[str],
-) -> dict[str, Any]:
-    """Use Groq to decide if any custom steps are blocked by missing documents/items.
+# A missing requirement that a known rules-based procedure can produce. Lets a
+# custom goal pull in real prerequisite workflows (e.g. lost NIC → duplicate NIC
+# steps come first) exactly like the rules path does. Now lives in the rules
+# layer because "How to get it?" needs the same mapping to word its sub-goal.
+_REQ_FULFILLED_BY = rules.REQUIREMENT_SERVICE
 
-    Returns a dependency_graph dict in the standard shape.
+
+def _custom_dependency(custom_steps: list[dict], missing: set[str]) -> dict[str, Any]:
+    """Deterministic dependency graph for an LLM-generated custom procedure.
+
+    Never LLM-locked (locking a custom procedure with no unlockable prerequisite
+    would dead-end the case). Instead, when an explicitly-missing requirement is
+    producible by a known service, that service is prepended as a real,
+    actionable prerequisite and the custom procedure is locked behind it.
     """
-    from app.config import settings
-
-    step_titles = [s.get("title", "") for s in (custom_steps or [])]
-    base_graph: dict[str, Any] = {
-        "services": {
-            "custom_procedure": {
-                "name": (custom_steps[0].get("_service_name", "Custom Procedure") if custom_steps else "Custom Procedure"),
-                "depends_on": [],
-                "status": "ready",
-                "reason": None,
-                "blocked_by": [],
-            }
-        },
-        "order": ["custom_procedure"],
-        "locked": [],
-    }
-
-    if not missing or not settings.groq_api_key:
-        return base_graph
-
-    from app.llm.groq_client import chat
-    sys_prompt = (
-        "You are a dependency checker for Sri Lankan government procedures. "
-        "Given a citizen's goal, procedure steps, and items/documents they are missing, "
-        "decide if ANY of the steps cannot be started without those missing items. "
-        "Respond ONLY with JSON:\n"
-        '{"blocked": true|false, "reason": "<one-line reason or null>"}\n'
-        "- Set blocked=true only when the missing items are a hard prerequisite for the procedure."
+    name = (
+        custom_steps[0].get("_service_name", "Custom Procedure")
+        if custom_steps else "Custom Procedure"
     )
-    missing_list = ", ".join(sorted(missing))
-    steps_summary = "; ".join(step_titles[:6])
-    try:
-        raw = chat(
-            [
-                {"role": "system", "content": sys_prompt},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Goal: {goal}\n"
-                        f"Steps: {steps_summary}\n"
-                        f"Missing: {missing_list}"
-                    ),
-                },
-            ],
-            json_mode=True,
-        )
-        data = json.loads(raw)
-        if data.get("blocked"):
-            reason = str(data.get("reason") or f"Missing required item(s): {missing_list}.")
-            base_graph["services"]["custom_procedure"]["status"] = "locked"
-            base_graph["services"]["custom_procedure"]["reason"] = reason
-            base_graph["locked"] = ["custom_procedure"]
-    except Exception:
-        pass
+    prereqs = [
+        svc for req, svc in _REQ_FULFILLED_BY.items()
+        if req in missing and rules.steps(svc)
+    ]
 
-    return base_graph
+    services: dict[str, Any] = {}
+    for svc in prereqs:
+        services[svc] = {
+            "name": rules.name(svc),
+            "depends_on": [],
+            "status": "ready",
+            "reason": None,
+            "blocked_by": [],
+        }
+    services["custom_procedure"] = {
+        "name": name,
+        "depends_on": list(prereqs),
+        "status": "locked" if prereqs else "ready",
+        "reason": (
+            f"Complete first: {', '.join(rules.name(s) for s in prereqs)}."
+            if prereqs else None
+        ),
+        "blocked_by": list(prereqs),
+    }
+    return {
+        "services": services,
+        "order": [*prereqs, "custom_procedure"],
+        "locked": ["custom_procedure"] if prereqs else [],
+    }
 
 
 def dependency(state: GraphState) -> dict:
@@ -142,10 +137,10 @@ def dependency(state: GraphState) -> dict:
     satisfied = _satisfied_requirements(state)
     explicit_missing = _missing_requirements(state)
 
-    # For custom goals, delegate dependency analysis to the LLM.
+    # Custom goals: deterministic graph; known services can be pulled in as
+    # prerequisites for explicitly missing requirements.
     if services == ["custom_procedure"]:
-        dependency_graph = _llm_custom_dependency(
-            state.get("goal", ""),
+        dependency_graph = _custom_dependency(
             state.get("custom_steps") or [],
             explicit_missing,
         )
@@ -156,7 +151,7 @@ def dependency(state: GraphState) -> dict:
             agent="Dependency",
             decision=f"custom_procedure: {'locked' if locked else 'ready'}" + (f" — {svc_node.get('reason')}" if locked else ""),
             reason=svc_node.get("reason"),
-            confidence=0.8,
+            confidence=1.0,
         )
         return {"dependency_graph": dependency_graph, **log}
 
@@ -178,12 +173,15 @@ def dependency(state: GraphState) -> dict:
         node = ensure_node(service)
         node["depends_on"] = list(rules.depends_on(service))
 
-        # Conditional dependencies: a missing requirement pulls in a prerequisite
-        # service and locks this one until that prerequisite is done.
+        # Conditional dependencies: an explicitly missing requirement pulls in a
+        # prerequisite service and locks this one until that prerequisite is
+        # done. Unconfirmed requirements do NOT lock (e.g. a licence renewal is
+        # not chained behind a duplicate-NIC procedure just because the citizen
+        # never mentioned their NIC) — an accepted document also clears it.
         for cond in rules.dependency_conditions(service):
             req = cond.get("when_missing")
             prereq = cond.get("service")
-            req_missing = bool(req) and (req in explicit_missing or req not in satisfied)
+            req_missing = bool(req) and req in explicit_missing and req not in satisfied
             if req_missing and prereq:
                 node["status"] = "locked"
                 node["reason"] = cond.get("reason") or f"{rules.name(prereq)} required first."

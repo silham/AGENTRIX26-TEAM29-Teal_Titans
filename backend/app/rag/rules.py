@@ -69,3 +69,20 @@ def name(service: str) -> str:
     """Human-readable service name; falls back to the id."""
     proc = get_procedure(service)
     return proc.get("name", service) if proc else service
+
+
+#: Requirement key -> the service that produces it. Used both to insert a real
+#: prerequisite into a dependency graph and to word a "How to get it?" sub-goal
+#: so the planner detects the right service instead of inventing a custom plan.
+#: `applicant_nic` is the birth-certificate procedure's spelling of `valid_nic`.
+REQUIREMENT_SERVICE: dict[str, str] = {
+    "valid_nic": "duplicate_nic",
+    "applicant_nic": "duplicate_nic",
+    "birth_certificate": "birth_certificate_copy",
+}
+
+
+def service_for_requirement(key: str) -> str | None:
+    """The service that obtains a requirement, if we model one with real steps."""
+    service = REQUIREMENT_SERVICE.get(key)
+    return service if service and steps(service) else None

@@ -4,14 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useT } from "@/lib/i18n";
 
 const TABS = [
-  { href: "/",          label: "Home",     Icon: Home },
-  { href: "/dashboard", label: "My Plans", Icon: ClipboardList },
+  { href: "/",          key: "nav.home",    Icon: Home },
+  { href: "/dashboard", key: "nav.myPlans", Icon: ClipboardList },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const t        = useT();
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-(--border) bg-white md:hidden">
@@ -19,7 +21,7 @@ export default function BottomNav() {
         className="flex"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 4px)" }}
       >
-        {TABS.map(({ href, label, Icon }) => {
+        {TABS.map(({ href, key, Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link
@@ -45,7 +47,7 @@ export default function BottomNav() {
                   active ? "text-(--primary)" : "text-(--muted-fg)",
                 )}
               >
-                {label}
+                {t(key)}
               </span>
             </Link>
           );

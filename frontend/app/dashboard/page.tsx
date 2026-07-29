@@ -7,9 +7,11 @@ import { Plus, Loader2, ClipboardList, AlertCircle } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import CaseCard from "@/components/CaseCard";
 import { api } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { Case } from "@/lib/types";
 
 export default function DashboardPage() {
+  const t = useT();
   const [cases,    setCases]    = useState<Case[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
@@ -25,7 +27,7 @@ export default function DashboardPage() {
       const data = await api.listCases();
       setCases(data);
     } catch {
-      setError("Could not load your plans. Is the server running?");
+      setError(t("dashboard.error"));
     } finally {
       setLoading(false);
     }
@@ -51,13 +53,13 @@ export default function DashboardPage() {
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ClipboardList size={22} className="text-(--primary)" />
-              <h1 className="text-xl font-bold text-(--foreground)">My Plans</h1>
+              <h1 className="text-xl font-bold text-(--foreground)">{t("dashboard.title")}</h1>
             </div>
             <Link
               href="/goal"
               className="flex items-center gap-1.5 rounded-xl bg-(--primary) px-4 py-2.5 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
             >
-              <Plus size={16} /> New Plan
+              <Plus size={16} /> {t("dashboard.newPlan")}
             </Link>
           </div>
 
@@ -79,7 +81,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-semibold text-(--danger)">{error}</p>
                 <p className="mt-1 text-xs text-(--muted-fg)">
-                  Start the backend:{" "}
+                  {t("dashboard.errorHint")}{" "}
                   <code className="rounded bg-white px-1 font-mono text-xs">
                     uvicorn app.main:app --reload
                   </code>
@@ -88,7 +90,7 @@ export default function DashboardPage() {
                   onClick={() => { void load(); }}
                   className="mt-2 text-xs font-semibold text-(--primary) underline"
                 >
-                  Try again
+                  {t("dashboard.tryAgain")}
                 </button>
               </div>
             </motion.div>
@@ -102,16 +104,15 @@ export default function DashboardPage() {
               className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-(--border) bg-white px-6 py-20 text-center"
             >
               <ClipboardList size={44} className="mb-4 text-(--muted-fg)" />
-              <h2 className="text-lg font-bold text-(--foreground)">No plans yet</h2>
+              <h2 className="text-lg font-bold text-(--foreground)">{t("dashboard.emptyTitle")}</h2>
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-(--muted-fg)">
-                Start by telling us what government service you need help with.
-                We will build a step-by-step guide just for you.
+                {t("dashboard.emptyBody")}
               </p>
               <Link
                 href="/goal"
                 className="mt-6 flex items-center gap-2 rounded-2xl bg-(--primary) px-8 py-4 text-base font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
               >
-                <Plus size={18} /> Start My First Plan
+                <Plus size={18} /> {t("dashboard.emptyCta")}
               </Link>
             </motion.div>
           )}
@@ -120,7 +121,7 @@ export default function DashboardPage() {
           {!loading && !error && cases.length > 0 && (
             <div className="space-y-3">
               <p className="text-sm text-(--muted-fg)">
-                {cases.length} active plan{cases.length !== 1 ? "s" : ""}
+                {t("dashboard.count", { count: cases.length })}
               </p>
               <AnimatePresence>
                 {cases.map((c, i) => (

@@ -1,67 +1,83 @@
 "use client";
 
-import { useEffect, useRef, useState, use } from "react";
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Upload, Loader2, FileText, CheckSquare, Play, RefreshCw,
+  ArrowLeft, CornerUpLeft, Loader2, ListChecks, CheckSquare, CheckCircle2, Play, RefreshCw,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import WorkflowStep from "@/components/WorkflowStep";
-import DocumentChecklist from "@/components/DocumentChecklist";
+import RequirementChecklist from "@/components/RequirementChecklist";
 import ExplainPanel from "@/components/ExplainPanel";
+import CitationList from "@/components/CitationList";
 import { api } from "@/lib/api";
-import type { Case, Step, Document } from "@/lib/types";
+import { useT } from "@/lib/i18n";
+import type { Case, Requirement, Step } from "@/lib/types";
+import { SATISFIED } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
-type Tab = "steps" | "documents";
-
-function mockDocs(steps: Step[]): Document[] {
-  const docs: Document[] = [];
-  const hasNIC      = steps.some((s) => /nic|police/i.test(s.title));
-  const hasBirth    = steps.some((s) => /birth/i.test(s.title));
-  const hasPassport = steps.some((s) => /passport/i.test(s.title));
-
-  if (hasNIC)      docs.push({ id: "d1", name: "National Identity Card (NIC)", type: "identity", status: "missing",    issues: [] });
-  if (hasNIC)      docs.push({ id: "d2", name: "Police Report",                type: "report",   status: "missing",    issues: [] });
-  if (hasBirth)    docs.push({ id: "d3", name: "Birth Certificate",            type: "cert",     status: "missing",    issues: [] });
-  if (hasPassport) docs.push({ id: "d4", name: "Passport Application Form",    type: "form",     status: "incomplete", issues: ["Signature missing on page 2", "Date field is empty"] });
-  docs.push({ id: "d5", name: "Passport Photos (2 copies)", type: "photo", status: "needs_verification", issues: [] });
-  return docs;
-}
+type Tab = "steps" | "requirements";
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id }   = use(params);
   const router   = useRouter();
+  const t        = useT();
 
   const [case_,    setCase]    = useState<Case | null>(null);
-  const [docs,     setDocs]    = useState<Document[]>([]);
   const [tab,      setTab]     = useState<Tab>("steps");
   const [explain,  setExplain] = useState<Step | null>(null);
   const [loading,  setLoading] = useState(true);
-  const [uploadFor, setUploadFor] = useState<string | null>(null);
-  const uploadRef  = useRef<HTMLInputElement>(null);
+  const [busyReq,  setBusyReq] = useState<string | null>(null);
+  const [togglingStep, setTogglingStep] = useState<string | null>(null);
 
   useEffect(() => {
     api.getCase(id)
-      .then((c) => { setCase(c); setDocs(mockDocs(c.steps)); setLoading(false); })
+      .then((c) => { setCase(c); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !uploadFor) return;
-    setDocs((prev) =>
-      prev.map((d) => d.name === uploadFor ? { ...d, status: "needs_verification" as const } : d),
-    );
-    await api.uploadDocument(id, file).catch(() => {});
-    e.target.value = "";
-    setUploadFor(null);
+  // "I have it" / undo. The response is the recomputed case, so steps,
+  // progress and the requirement all update in one round trip.
+  async function markRequirement(req: Requirement, next: "confirmed" | "missing") {
+    setBusyReq(req.id);
+    try {
+      setCase(await api.setRequirement(id, req.id, next));
+    } catch {
+      // leave the UI unchanged; the refresh button re-syncs on demand
+    } finally {
+      setBusyReq(null);
+    }
   }
 
-  function openUpload(name: string) {
-    setUploadFor(name);
-    uploadRef.current?.click();
+  // "How to get it?" — a brand-new plan has no steps yet and needs the agent
+  // graph to run; an existing one goes straight to its checklist.
+  async function startSubGoal(req: Requirement) {
+    setBusyReq(req.id);
+    try {
+      const sub = await api.createSubGoal(id, req.id);
+      router.push(sub.steps.length === 0 ? `/cases/${sub.id}/processing` : `/cases/${sub.id}`);
+    } catch {
+      setBusyReq(null);
+    }
+    // deliberately no finally: stay busy through the navigation
+  }
+
+  async function toggleStep(step: Step) {
+    setTogglingStep(step.id);
+    try {
+      const updated = await api.updateStep(
+        id,
+        step.id,
+        step.status === "completed" ? "pending" : "completed",
+      );
+      setCase(updated); // backend returns the recomputed case (locks, progress, active step)
+    } catch {
+      // leave the UI unchanged; the refresh button re-syncs on demand
+    } finally {
+      setTogglingStep(null);
+    }
   }
 
   if (loading) {
@@ -80,12 +96,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       <div className="flex min-h-dvh flex-col bg-(--background)">
         <Navbar />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
-          <p className="text-(--muted-fg)">This plan was not found.</p>
+          <p className="text-(--muted-fg)">{t("case.notFound")}</p>
           <button
             onClick={() => router.push("/dashboard")}
             className="text-sm font-semibold text-(--primary) underline"
           >
-            Back to My Plans
+            {t("case.back")}
           </button>
         </div>
       </div>
@@ -94,18 +110,24 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   const completedSteps  = case_.steps.filter((s) => s.status === "completed").length;
   const nextStep        = case_.steps.find((s) => s.status === "active" || s.status === "pending");
-  const missingDocCount = docs.filter((d) => d.status === "missing").length;
+  const allDone         = case_.steps.length > 0 &&
+    case_.steps.every((s) => s.status === "completed" || s.status === "skipped");
+  const requirements    = case_.documents ?? [];
+  const citations       = case_.citations ?? [];
+  const subGoals        = case_.sub_goals ?? [];
+  // Everything still outstanding — which correctly includes legacy
+  // rejected/incomplete rows, not just "missing".
+  const openReqCount    = requirements.filter((r) => !SATISFIED.has(r.status)).length;
 
   const TABS = [
-    { key: "steps" as Tab,     label: "Your Steps", Icon: CheckSquare, badge: 0 },
-    { key: "documents" as Tab, label: "Documents",  Icon: FileText,    badge: missingDocCount },
+    { key: "steps" as Tab,        label: t("case.tabSteps"),        Icon: CheckSquare, badge: 0 },
+    { key: "requirements" as Tab, label: t("case.tabRequirements"), Icon: ListChecks,  badge: openReqCount },
   ];
 
   return (
     <div className="flex min-h-dvh flex-col bg-(--surface)">
       <Navbar />
       <ExplainPanel step={explain} onClose={() => setExplain(null)} />
-      <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload} accept="image/*,.pdf" />
 
       <main className="flex-1 px-4 py-4">
         <div className="mx-auto max-w-lg">
@@ -115,7 +137,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             onClick={() => router.push("/dashboard")}
             className="mb-4 flex items-center gap-1.5 text-sm text-(--muted-fg) hover:text-(--foreground) transition-colors"
           >
-            <ArrowLeft size={16} /> Back to My Plans
+            <ArrowLeft size={16} /> {t("case.back")}
           </button>
 
           {/* Case header */}
@@ -126,8 +148,21 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 ? "bg-(--success-light) text-(--success)"
                 : "bg-(--primary-light) text-(--primary)",
             )}>
-              {case_.status === "completed" ? "Completed" : "In Progress"}
+              {case_.status === "completed" ? t("case.completed") : t("case.inProgress")}
             </span>
+
+            {/* This plan exists to obtain one requirement of another plan. */}
+            {case_.parent && (
+              <Link
+                href={`/cases/${case_.parent.id}`}
+                className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-(--muted-fg) hover:text-(--primary) transition-colors"
+              >
+                <CornerUpLeft size={12} className="shrink-0" />
+                <span className="line-clamp-1">
+                  {t("case.partOf", { goal: case_.parent.goal })}
+                </span>
+              </Link>
+            )}
 
             <h1 className="text-lg font-bold leading-snug text-(--foreground)">
               {case_.goal}
@@ -135,7 +170,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
             {nextStep && (
               <p className="mt-2 text-sm text-(--muted-fg)">
-                Next step:{" "}
+                {t("case.nextStep")}{" "}
                 <span className="font-semibold text-(--foreground)">{nextStep.title}</span>
               </p>
             )}
@@ -144,7 +179,11 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             <div className="mt-4">
               <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="text-(--muted-fg)">
-                  {completedSteps} of {case_.steps.length} steps done
+                  {t("case.stepsDone", {
+                    count: case_.steps.length,
+                    done: completedSteps,
+                    total: case_.steps.length,
+                  })}
                 </span>
                 <span className="font-bold text-(--primary)">{case_.progress}%</span>
               </div>
@@ -160,22 +199,38 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
             {/* Actions */}
             <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => router.push(`/cases/${id}/processing`)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--primary) py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
-              >
-                <Play size={15} /> Resume
-              </button>
-              <button
-                onClick={() => openUpload("")}
-                className="flex items-center gap-2 rounded-xl border border-(--border) bg-white px-4 py-3 text-sm font-medium text-(--foreground) hover:border-(--primary) transition-colors"
-              >
-                <Upload size={15} /> Upload
-              </button>
+              {case_.steps.length === 0 ? (
+                <button
+                  onClick={() => router.push(`/cases/${id}/processing`)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--primary) py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all"
+                >
+                  <Play size={15} /> {t("case.generatePlan")}
+                </button>
+              ) : nextStep ? (
+                <button
+                  onClick={() => toggleStep(nextStep)}
+                  disabled={togglingStep !== null}
+                  className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-(--primary) px-3 py-3 text-sm font-bold text-white hover:bg-(--primary-dark) active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {togglingStep === nextStep.id
+                    ? <Loader2 size={15} className="shrink-0 animate-spin" />
+                    : <CheckCircle2 size={15} className="shrink-0" />}
+                  {t("case.completeStep")}
+                </button>
+              ) : allDone ? (
+                <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-(--success-light) py-3 text-sm font-bold text-(--success)">
+                  <CheckCircle2 size={15} /> {t("case.allDone")}
+                </div>
+              ) : (
+                <div className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-50 py-3 text-sm font-bold text-orange-700">
+                  {t("case.notEligible")}
+                </div>
+              )}
               <button
                 onClick={() => { api.getCase(id).then(setCase).catch(() => {}); }}
                 className="flex items-center justify-center rounded-xl border border-(--border) bg-white px-3 py-3 text-(--muted-fg) hover:text-(--foreground) transition-colors"
-                title="Refresh"
+                title={t("case.refresh")}
+                aria-label={t("case.refresh")}
               >
                 <RefreshCw size={15} />
               </button>
@@ -222,13 +277,13 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="rounded-2xl border border-dashed border-(--border) bg-white p-10 text-center">
                     <CheckSquare size={36} className="mx-auto mb-3 text-(--muted-fg)" />
                     <p className="text-sm text-(--muted-fg)">
-                      No steps yet. Resume to generate your plan.
+                      {t("case.emptySteps")}
                     </p>
                     <button
                       onClick={() => router.push(`/cases/${id}/processing`)}
                       className="mt-4 text-sm font-semibold text-(--primary) underline"
                     >
-                      Generate plan →
+                      {t("case.emptyStepsCta")}
                     </button>
                   </div>
                 ) : (
@@ -240,33 +295,83 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                         index={i}
                         isLast={i === case_.steps.length - 1}
                         onExplain={setExplain}
+                        onToggle={toggleStep}
+                        busy={togglingStep === step.id}
                       />
                     ))}
+                  </div>
+                )}
+
+                {/* Where the plan's information came from. Official procedure and
+                    supporting uploaded documents are shown separately on purpose. */}
+                {citations.length > 0 && (
+                  <div className="mt-6 border-t border-(--border) pt-5">
+                    <CitationList citations={citations} />
                   </div>
                 )}
               </motion.div>
             )}
 
-            {tab === "documents" && (
+            {tab === "requirements" && (
               <motion.div
-                key="documents"
+                key="requirements"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                {docs.length === 0 ? (
+                {requirements.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-(--border) bg-white p-10 text-center">
-                    <FileText size={36} className="mx-auto mb-3 text-(--muted-fg)" />
-                    <p className="text-sm text-(--muted-fg)">No documents identified yet.</p>
+                    <ListChecks size={36} className="mx-auto mb-3 text-(--muted-fg)" />
+                    <p className="text-sm text-(--muted-fg)">{t("case.emptyRequirements")}</p>
                     <button
                       onClick={() => router.push(`/cases/${id}/processing`)}
                       className="mt-4 text-sm font-semibold text-(--primary) underline"
                     >
-                      Generate plan to see documents →
+                      {t("case.emptyRequirementsCta")}
                     </button>
                   </div>
                 ) : (
-                  <DocumentChecklist documents={docs} onUpload={openUpload} />
+                  <RequirementChecklist
+                    requirements={requirements}
+                    subGoals={subGoals}
+                    onHaveIt={markRequirement}
+                    onHowToGet={startSubGoal}
+                    busyId={busyReq}
+                  />
+                )}
+
+                {/* Plans started from these requirements. They live here rather
+                    than in a third tab because they are requirement-derived. */}
+                {subGoals.length > 0 && (
+                  <div className="mt-6 border-t border-(--border) pt-5">
+                    <p className="mb-3 text-sm font-bold text-(--foreground)">
+                      {t("case.subGoalsTitle")}
+                    </p>
+                    <div className="space-y-2">
+                      {subGoals.map((g) => (
+                        <Link
+                          key={g.id}
+                          href={`/cases/${g.id}`}
+                          className="block rounded-2xl border border-(--border) bg-white p-4 hover:border-(--primary) transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="line-clamp-1 text-sm font-semibold text-(--foreground)">
+                              {g.goal}
+                            </p>
+                            <span className="shrink-0 text-xs font-bold text-(--primary)">
+                              {g.progress}%
+                            </span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-(--surface)">
+                            <div
+                              className="h-full rounded-full bg-(--primary) transition-all"
+                              style={{ width: `${g.progress}%` }}
+                            />
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </motion.div>
             )}

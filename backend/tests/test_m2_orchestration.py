@@ -88,10 +88,11 @@ def test_planner_detects_dual_service(monkeypatch):
 
 
 def test_planner_single_service(monkeypatch):
+    import app.llm.groq_client as gc
     import app.graph.nodes.planner as planner_mod
 
-    # Patch the name as bound in the planner module (not the source module)
-    monkeypatch.setattr(planner_mod, "chat", lambda msgs, **kw: _LICENCE_RESPONSE)
+    # planner imports chat lazily from groq_client, so patch the source module
+    monkeypatch.setattr(gc, "chat", lambda msgs, **kw: _LICENCE_RESPONSE)
 
     state = {"goal": "renew my driving licence", "case_id": "c2", "user_id": "u1"}
     result = planner_mod.planner(state)
@@ -101,9 +102,10 @@ def test_planner_single_service(monkeypatch):
 
 
 def test_planner_bad_json_degrades_gracefully(monkeypatch):
+    import app.llm.groq_client as gc
     import app.graph.nodes.planner as planner_mod
 
-    monkeypatch.setattr(planner_mod, "chat", lambda msgs, **kw: "not json {{{{")
+    monkeypatch.setattr(gc, "chat", lambda msgs, **kw: "not json {{{{")
 
     state = {"goal": "something", "case_id": "c3", "user_id": "u1"}
     result = planner_mod.planner(state)

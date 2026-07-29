@@ -40,14 +40,25 @@ Requirement keys: valid_nic, birth_certificate, passport, driving_license, polic
 marriage_certificate, business_registration_certificate.
 
 Rules:
+- Include a service ONLY if the citizen's goal actually requires that exact service.
+  Do NOT force-fit the goal into loosely related services.
+- The detected services must TOGETHER fully accomplish the citizen's goal. If any
+  part of the goal (e.g. citizenship for a foreign spouse, adoption, land
+  registration, visas, pensions) is not covered by a known service ID, return an
+  empty "detected_services" list instead — a custom plan covering the whole goal
+  will be generated, and prerequisites like a lost NIC are still handled from the
+  "lost"/"missing" facts you report.
 - If the citizen says they LOST their NIC/identity card, add "valid_nic" to "lost" AND
   "missing", and include "duplicate_nic" in detected_services BEFORE passport_application.
 - If the citizen says they HAVE a document, add its key to "have".
-- If a service requires an NIC and the citizen has not confirmed they have one, add
-  "valid_nic" to "missing".
+- Include passport_application only when the citizen wants a passport/travel document
+  for themselves. If it is included and the citizen has not confirmed they have an NIC,
+  add "valid_nic" to "missing".
 - Always list prerequisite services BEFORE the services that depend on them.
 - "lost" means the citizen explicitly said something is lost/stolen/destroyed.
-- "missing" means the citizen doesn't have it (whether lost or never had).
+- "missing" means the citizen SAID they don't have it (whether lost or never had).
+- Do NOT add anything to "missing" or "lost" just because the procedure will
+  probably require it — only include what the citizen's own words establish.
 
 Known service IDs: passport_application, duplicate_nic, driving_license_renewal,
 birth_certificate_copy, marriage_registration, business_registration,
@@ -82,6 +93,21 @@ Rules:
 - Keep each step title under 10 words.
 - Maximum 10 steps.
 - Use null for source_url when unsure — do NOT invent URLs.\
+"""
+
+# Appended to _CUSTOM_SYSTEM only when the knowledge base returned passages.
+_CUSTOM_SYSTEM_RAG = """
+
+GROUNDING RULES (official source excerpts are provided in the user message):
+- The excerpts are extracts from official Sri Lankan government documents uploaded
+  by an administrator. Treat them as the primary, authoritative basis for your answer.
+- Every "source_url" you emit MUST be copied VERBATIM from one of the provided
+  excerpts, or be null. Never invent, guess, abbreviate or modify a URL.
+- Where the excerpts contradict your general knowledge, the excerpts win.
+- Where the excerpts do not cover part of the goal, still give the step, but set
+  its source_url to null.
+- Add "grounded": true or false to each step — true ONLY when that step's content
+  came from an excerpt.\
 """
 
 # ── Keyword fallback (no Groq key needed) ────────────────────────────────────
@@ -166,21 +192,81 @@ def _keyword_plan(goal: str) -> dict:
     }
 
 
-def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
+_MAX_CONTEXT_PASSAGES = 5
+_MAX_PASSAGE_CHARS = 1200
+
+
+def _retrieval_context(goal: str) -> tuple[str, list[dict]]:
+    """Fetch knowledge-base passages for a goal and render them for the prompt.
+
+    Returns (context_block, passages). Empty on any failure — an unavailable
+    knowledge base must degrade to the ungrounded prompt, not break planning.
+    """
+    import sys
+
+    from app.rag import retriever
+
+    try:
+        passages = retriever.search(goal, k=_MAX_CONTEXT_PASSAGES)
+    except Exception as exc:  # noqa: BLE001 — retrieval is best-effort here
+        print(f"[planner] retrieval failed: {exc!r}", file=sys.stderr)
+        return "", []
+
+    blocks = [
+        f"[{i}] title: {p.get('title') or 'Untitled'}\n"
+        f"source_url: {p.get('source_url') or 'NONE'}\n"
+        f"{(p.get('content') or '')[:_MAX_PASSAGE_CHARS]}"
+        for i, p in enumerate(passages, 1)
+    ]
+    return "\n\n".join(blocks), passages
+
+
+def _strip_ungrounded_urls(steps: list[dict], passages: list[dict]) -> None:
+    """Null out any source_url the model did not copy from a retrieved passage.
+
+    The prompt asks for this, but prompts are not guarantees — the pre-existing
+    "do NOT invent URLs" instruction was already unenforced. This is the actual
+    control. Only applied when we HAVE passages, so the zero-corpus path keeps
+    its previous behaviour.
+    """
+    import sys
+
+    allowed = {p["source_url"] for p in passages if p.get("source_url")}
+    if not allowed:
+        return
+    for step in steps:
+        url = step.get("source_url")
+        if url and url not in allowed:
+            print(f"[planner] dropped ungrounded source_url {url!r}", file=sys.stderr)
+            step["source_url"] = None
+
+
+def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str], list[dict]]:
     """Ask Groq to generate a full plan (steps + requirements) for an unknown goal.
 
-    Returns (steps, requirements). steps are compatible with rules.steps() output.
-    Both lists are empty on failure.
+    Grounds the plan in admin-uploaded knowledge-base documents when the
+    retriever returns anything, so a goal no procedure JSON covers is answered
+    from real government sources instead of model memory.
+
+    Returns (steps, requirements, passages). steps are compatible with
+    rules.steps() output. All empty on failure.
     """
     import sys
     if not settings.groq_api_key:
-        return [], []
+        return [], [], []
     from app.llm.groq_client import chat
+
+    context, passages = _retrieval_context(goal)
+    system = _CUSTOM_SYSTEM + (_CUSTOM_SYSTEM_RAG if context else "")
+    user = f"Citizen goal: {goal}"
+    if context:
+        user += f"\n\nOFFICIAL SOURCE EXCERPTS:\n{context}"
+
     try:
         raw = chat(
             [
-                {"role": "system", "content": _CUSTOM_SYSTEM},
-                {"role": "user", "content": f"Citizen goal: {goal}"},
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
             ],
             json_mode=True,
         )
@@ -191,6 +277,7 @@ def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
                 "title": str(s.get("title", "")),
                 "description": s.get("description") or None,
                 "source_url": s.get("source_url") or None,
+                "grounded": bool(s.get("grounded")),
                 "fulfills": None,
                 "_service_name": data.get("service_name", "Custom Procedure"),
                 "_office": data.get("office", ""),
@@ -198,18 +285,25 @@ def _generate_custom_plan(goal: str) -> tuple[list[dict], list[str]]:
             for s in raw_steps
             if s.get("title")
         ]
+        _strip_ungrounded_urls(steps, passages)
         requirements = [str(r) for r in (data.get("requirements") or []) if r]
-        return steps, requirements
+        return steps, requirements, passages
     except Exception as exc:
         print(f"[planner] _generate_custom_plan failed: {exc!r}", file=sys.stderr)
-        return [], []
+        return [], [], passages
 
 
 def planner(state: GraphState) -> dict:
+    import sys
+
     goal = state.get("goal", "")
     result: dict = {}
     custom_steps: list[dict] = []
     custom_requirements: list[str] = []
+    passages: list[dict] = []  # knowledge-base passages, reused by the knowledge node
+    groq_detected = False       # True only when Groq itself produced the services
+    groq_said_none = False      # Groq deliberately answered "no known service fits"
+    groq_intent: dict | None = None  # Groq's have/missing/lost facts, kept across fallbacks
 
     # ── Try Groq for service detection ───────────────────────────────────────
     if settings.groq_api_key:
@@ -223,28 +317,45 @@ def planner(state: GraphState) -> dict:
                 json_mode=True,
             )
             parsed = json.loads(raw)
-            # Keep only known IDs that also have a rules JSON file with actual steps.
-            # Services without steps (no JSON file yet) are treated as unrecognised so
-            # the goal falls through to the custom Groq plan generator.
             raw_services = parsed.get("detected_services") or []
             valid = [s for s in raw_services if rules.steps(s)]
-            if valid:
+            # Accept the rules-based plan only when EVERY detected service has a
+            # rules JSON with steps. If Groq needed a service we can't model
+            # (e.g. marriage_registration), a partial rules plan would answer the
+            # wrong question — fall through to the custom Groq plan generator,
+            # which sees the whole goal. Keep Groq's intent either way: the
+            # have/missing/lost facts stay useful downstream.
+            groq_intent = parsed.get("intent")
+            groq_said_none = not raw_services
+            if valid and len(valid) == len(raw_services):
                 parsed["detected_services"] = valid
                 result = parsed
-        except Exception:
+                groq_detected = True
+            elif raw_services:
+                print(
+                    f"[planner] Groq services {raw_services} not fully covered by rules; "
+                    "falling back to custom plan",
+                    file=sys.stderr,
+                )
+        except Exception as exc:
+            print(f"[planner] Groq service detection failed: {exc!r}", file=sys.stderr)
             result = {}
 
     # ── Keyword fallback when Groq failed or produced no valid services ───────
-    if not result.get("detected_services"):
+    # Skipped when Groq deliberately said "no known service fits": a keyword hit
+    # would resurrect a partial plan for a goal that needs a custom one.
+    if not result.get("detected_services") and not groq_said_none:
         result = _keyword_plan(goal)
+        if groq_intent:
+            result["intent"] = groq_intent
 
     # ── Custom Groq-generated plan for goals with no matching service ─────────
     if not result.get("detected_services"):
-        custom_steps, custom_requirements = _generate_custom_plan(goal)
+        custom_steps, custom_requirements, passages = _generate_custom_plan(goal)
         if custom_steps:
             result["detected_services"] = ["custom_procedure"]
             if not result.get("intent"):
-                result["intent"] = {
+                result["intent"] = groq_intent or {
                     "primary_goal": goal[:120],
                     "urgency": "medium",
                     "has_blocking_issues": False,
@@ -255,15 +366,17 @@ def planner(state: GraphState) -> dict:
                 }
 
     services = result.get("detected_services", [])
-    confidence = 0.95 if (services and services != ["custom_procedure"] and settings.groq_api_key) \
+    confidence = 0.95 if groq_detected \
         else 0.8 if custom_steps \
         else 0.7
 
+    grounded = sum(1 for s in custom_steps if s.get("grounded"))
     log_update = audit(
         state,
         agent="planner",
         decision=f"Detected services: {services}"
-                 + (" (custom Groq plan)" if custom_steps else ""),
+                 + (" (custom Groq plan)" if custom_steps else "")
+                 + (f", {grounded} step(s) grounded in uploaded documents" if grounded else ""),
         reason=goal,
         confidence=confidence,
     )
@@ -273,5 +386,6 @@ def planner(state: GraphState) -> dict:
         "intent": result.get("intent", {}),
         "custom_steps": custom_steps,
         "custom_requirements": custom_requirements,
+        "retrieved_passages": passages,
         **log_update,
     }

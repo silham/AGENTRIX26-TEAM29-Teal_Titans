@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HelpLK — Offline</title>
+    <style>
+      /* Standalone: this page is served by the service worker when the network
+         is gone, so it can rely on nothing the app normally loads. No external
+         fonts, no CSS bundle, no JS framework. */
+      :root {
+        --primary: #1d4ed8;
+        --background: #eef2ff;
+        --foreground: #0f172a;
+        --muted: #64748b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        line-height: 1.6;
+        text-align: center;
+      }
+      .card {
+        max-width: 380px;
+        width: 100%;
+        background: #fff;
+        border-radius: 24px;
+        padding: 32px 24px;
+        box-shadow: 0 1px 3px rgb(15 23 42 / 0.08);
+      }
+      img { width: 72px; height: 72px; }
+      h1 { margin: 16px 0 4px; font-size: 20px; }
+      /* Each language on its own line, all three always shown: the worker has
+         no access to the citizen's stored language preference. */
+      p { margin: 4px 0; font-size: 15px; color: var(--muted); }
+      p.si, p.ta { line-height: 1.85; }
+      button {
+        margin-top: 24px;
+        width: 100%;
+        padding: 14px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--primary);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="/icon-192.png" alt="HelpLK" />
+      <h1>You are offline</h1>
+      <p class="si">ඔබ දැන් අන්තර්ජාලයට සම්බන්ධ වී නැත.</p>
+      <p class="ta">நீங்கள் இணையத்துடன் இணைக்கப்படவில்லை.</p>
+      <p>Your saved plans will load again once you reconnect.</p>
+      <button onclick="location.reload()">Try again · නැවත · மீண்டும்</button>
+    </div>
+  </body>
+</html>

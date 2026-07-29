@@ -22,6 +22,9 @@ class GraphState(TypedDict, total=False):
     # Knowledge / RAG (M3)
     requirements: list[str]
     citations: list[dict[str, Any]]
+    # Knowledge-base passages retrieved by the planner, reused by the knowledge
+    # node so a run embeds the goal once rather than twice.
+    retrieved_passages: list[dict[str, Any]]
 
     # Dependency (M3)
     dependency_graph: dict[str, Any]
@@ -29,6 +32,16 @@ class GraphState(TypedDict, total=False):
     # Eligibility (M4)
     eligibility: dict[str, Any]
     questions: list[str]
+    # Structured clarifying questions the UI can render as inputs:
+    # [{field, question, type: choice|boolean|number|text, options?}, ...]
+    question_fields: list[dict[str, Any]]
+    # Citizen's answers, injected on resume via graph.aupdate_state
+    facts: dict[str, Any]
+    # Alternate routes for blocked services: [{service, reason, alternative}, ...]
+    alternatives: list[dict[str, Any]]
+    # True when a checkpointer is active, i.e. the graph CAN pause to ask the
+    # user; without one the eligibility Q&A loop is skipped (non-blocking)
+    interactive: bool
 
     # Checklist (M4)
     checklist: list[dict[str, Any]]

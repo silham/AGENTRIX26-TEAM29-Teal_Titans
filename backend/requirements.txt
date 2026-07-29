@@ -19,9 +19,14 @@ langgraph==0.2.60
 langgraph-checkpoint-postgres==2.0.9
 
 # --- RAG (M3) ---
-llama-index==0.12.10
-llama-index-vector-stores-postgres==0.4.1
+# NOTE: llama-index was pinned here but imported nowhere — the vector layer is a
+# direct pgvector implementation in app/rag/. Removed (~200MB of transitive deps).
 sentence-transformers==3.3.1  # local embedding fallback (zero-quota)
+
+# --- Knowledge-base document extraction (M6) ---
+pypdf==5.1.0
+python-docx==1.1.2
+pdf2image==1.17.0  # needs the poppler binary; extract.py degrades gracefully without it
 
 # --- LLMs (M2/M3/M5) — free tiers ---
 groq==0.15.0
@@ -33,4 +38,5 @@ pytesseract==0.3.13
 
 # --- Test ---
 pytest==8.3.4
+pytest-asyncio==0.25.0
 httpx==0.28.1

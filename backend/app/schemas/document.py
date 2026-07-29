@@ -23,13 +23,25 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DocumentStatus(str, Enum):
-    """Lifecycle states of an uploaded document."""
+    """Lifecycle states of a requirement.
+
+    CONFIRMED and ACCEPTED both mean "the citizen has this", but they are
+    deliberately distinct: ACCEPTED means a file was uploaded and a vision model
+    found no issues (there is a stored file to sign a URL for), while CONFIRMED
+    means the citizen simply told us they hold it and nothing was collected.
+    Merging them would claim a verification that never happened.
+    """
 
     MISSING = "missing"
-    ACCEPTED = "accepted"
+    CONFIRMED = "confirmed"  # citizen self-declared via "I have it"
+    ACCEPTED = "accepted"  # legacy: uploaded and machine-verified
     REJECTED = "rejected"
     INCOMPLETE = "incomplete"
     NEEDS_VERIFICATION = "needs_verification"
+
+
+#: Statuses that mean the citizen holds the item, so its step can complete.
+SATISFIED_STATUSES: frozenset[str] = frozenset({"confirmed", "accepted"})
 
 
 class DocumentType(str, Enum):

@@ -18,7 +18,8 @@ from app.schemas.document import DocumentType, VisionAnalysisResult
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-1.5-flash"
+# gemini-1.5-flash was retired by Google; 2.5-flash is the current free-tier vision model.
+MODEL = "gemini-2.5-flash"
 
 # ---------------------------------------------------------------------------
 # Custom exceptions
@@ -193,30 +194,7 @@ def _parse_gemini_response(raw_text: str) -> VisionAnalysisResult:
         raw_response=raw_text,
     )
 
-
-# ---------------------------------------------------------------------------
-# Utility: translate text via Gemini (Sinhala / Tamil / English)
-# ---------------------------------------------------------------------------
-
-
-async def translate_text(text: str, target_language: str = "si") -> str:
-    """Translate text to Sinhala ('si') or Tamil ('ta') using Gemini."""
-    import google.generativeai as genai
-
-    if target_language == "en" or not settings.gemini_api_key:
-        return text
-
-    lang_name = {"si": "Sinhala", "ta": "Tamil"}.get(target_language, "Sinhala")
-    prompt = (
-        f"Translate the following text to {lang_name}. "
-        f"Return only the translated text, nothing else.\n\n{text}"
-    )
-
-    genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel(MODEL)
-    try:
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as exc:
-        logger.warning("Translation failed, returning original: %s", exc)
-        return text
+# NOTE: a `translate_text` helper used to live here. It had no callers, no
+# caching and no glossary, and was declared `async` while calling the blocking
+# Gemini SDK — so wiring it into a request path would have stalled the event
+# loop. Translation now lives in app/i18n/translator.py.

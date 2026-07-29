@@ -60,7 +60,9 @@ def derive_reminders(
     for doc in documents or []:
         if doc.get("status") in _NEEDS_ACTION_DOC:
             name = doc.get("name", "a required document")
-            verb = "upload" if doc.get("status") == "missing" else "fix"
+            # Nothing is uploaded any more — the citizen obtains the item and
+            # confirms it on the Requirements tab.
+            verb = "get" if doc.get("status") == "missing" else "sort out"
             reminders.append(
                 {
                     "type": "missing_document",
