@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, CornerUpLeft, Loader2, ListChecks, CheckSquare, CheckCircle2, Play, RefreshCw,
+  ArrowLeft, ArrowRight, CornerUpLeft, Loader2, ListChecks, CheckSquare, CheckCircle2,
+  Play, RefreshCw, Bell, AlertTriangle,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import WorkflowStep from "@/components/WorkflowStep";
@@ -118,6 +119,28 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   // Everything still outstanding — which correctly includes legacy
   // rejected/incomplete rows, not just "missing".
   const openReqCount    = requirements.filter((r) => !SATISFIED.has(r.status)).length;
+
+  // Reminders — actionable nudges derived from the plan's current state, the
+  // same two the backend Reminder node produces for real case data (missing
+  // requirement + next action). Derived here so they localise and survive a
+  // reload, rather than plumbing the graph's ephemeral English-only reminders.
+  // Warnings (things to obtain) lead; the next-step nudge closes the list.
+  const reminders: { key: string; message: string; severity: "warning" | "info" }[] = [
+    ...requirements
+      .filter((r) => !SATISFIED.has(r.status))
+      .map((r) => ({
+        key: `req-${r.id}`,
+        message: t("case.reminderMissingDoc", { name: r.name }),
+        severity: "warning" as const,
+      })),
+    ...(nextStep
+      ? [{
+          key: "next-action",
+          message: t("case.reminderNextAction", { title: nextStep.title }),
+          severity: "info" as const,
+        }]
+      : []),
+  ];
 
   const TABS = [
     { key: "steps" as Tab,        label: t("case.tabSteps"),        Icon: CheckSquare, badge: 0 },
@@ -236,6 +259,41 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </button>
             </div>
           </div>
+
+          {/* Reminders — only when there is something to act on */}
+          {reminders.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 rounded-2xl border border-(--border) bg-white p-4 shadow-sm"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <Bell size={16} className="text-(--primary)" />
+                <h2 className="text-sm font-bold text-(--foreground)">{t("case.remindersTitle")}</h2>
+                <span className="ml-auto rounded-full bg-(--danger) px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {reminders.length}
+                </span>
+              </div>
+              <ul className="space-y-2">
+                {reminders.map((r) => (
+                  <li
+                    key={r.key}
+                    className="flex items-start gap-2.5 rounded-xl bg-(--surface) px-3 py-2.5"
+                  >
+                    <span className={cn(
+                      "mt-0.5 shrink-0",
+                      r.severity === "warning" ? "text-(--danger)" : "text-(--primary)",
+                    )}>
+                      {r.severity === "warning"
+                        ? <AlertTriangle size={15} />
+                        : <ArrowRight size={15} />}
+                    </span>
+                    <span className="text-sm leading-snug text-(--foreground)">{r.message}</span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          )}
 
           {/* Tabs */}
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl border border-(--border) bg-white p-1 shadow-sm">

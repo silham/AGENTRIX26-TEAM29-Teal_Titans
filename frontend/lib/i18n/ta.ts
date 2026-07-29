@@ -158,6 +158,9 @@ export const ta: Dictionary = {
     view: "பார்",
     continue: "தொடர்",
     next: "அடுத்து:",
+    remindersTitle: "உங்கள் கவனம் தேவை",
+    reminderNextAction: "அடுத்த படி: {title}",
+    reminderMissingDoc: "நீங்கள் இன்னும் {name} பெற வேண்டும்.",
   },
 
   step: {

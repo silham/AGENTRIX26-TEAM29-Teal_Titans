@@ -159,6 +159,9 @@ export const si: Dictionary = {
     view: "බලන්න",
     continue: "ඉදිරියට",
     next: "මීළඟ:",
+    remindersTitle: "ඔබේ අවධානය අවශ්‍යයි",
+    reminderNextAction: "මීළඟ පියවර: {title}",
+    reminderMissingDoc: "ඔබට තවම {name} ලබාගත යුතුයි.",
   },
 
   step: {

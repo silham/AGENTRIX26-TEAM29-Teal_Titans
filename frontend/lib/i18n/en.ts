@@ -172,6 +172,10 @@ export const en = {
     view: "View",
     continue: "Continue",
     next: "Next:",
+    // Reminders — actionable nudges derived from the plan's current state.
+    remindersTitle: "Needs your attention",
+    reminderNextAction: "Next step: {title}",
+    reminderMissingDoc: "You still need to get {name}.",
   },
 
   step: {
