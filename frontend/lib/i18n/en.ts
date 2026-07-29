@@ -24,6 +24,8 @@ export const en = {
     language: "Language",
     account: "Account menu",
     home: "Home",
+    install: "Install app",
+    logoAlt: "HelpLK",
   },
 
   landing: {

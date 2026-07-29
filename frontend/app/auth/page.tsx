@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Eye, EyeOff, Loader2, LogIn, UserPlus } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { signIn } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
@@ -83,9 +84,14 @@ function AuthContent() {
       <header className="w-full border-b border-(--border) bg-white px-4 py-3">
         <div className="mx-auto flex max-w-lg items-center gap-2.5">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-(--primary)">
-              <span className="text-xs font-bold text-white">LK</span>
-            </div>
+            <Image
+              src="/logo-transparent.png"
+              alt={t("nav.logoAlt")}
+              width={32}
+              height={32}
+              priority
+              className="h-8 w-8 shrink-0"
+            />
             <span className="text-base font-bold text-(--foreground)">{t("nav.brand")}</span>
           </Link>
         </div>

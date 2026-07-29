@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Database, Globe, LogOut, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,6 +11,7 @@ import type { Language } from "@/lib/types";
 import { LANG_LABELS } from "@/lib/types";
 import { useLanguage, useT } from "@/lib/i18n";
 import { getStoredUser, isAdmin, isAuthenticated, signOut } from "@/lib/api";
+import InstallPrompt from "./InstallPrompt";
 
 /**
  * Language was previously an optional prop that only /goal passed, so the
@@ -58,9 +60,16 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-(--primary)">
-            <span className="text-sm font-bold text-white">LK</span>
-          </div>
+          {/* priority: this is the LCP element on every page, and it sits in a
+              sticky header, so lazy-loading it causes a visible pop-in. */}
+          <Image
+            src="/logo-transparent.png"
+            alt={t("nav.logoAlt")}
+            width={36}
+            height={36}
+            priority
+            className="h-9 w-9 shrink-0"
+          />
           <div className="leading-tight">
             <p className="text-base font-bold text-(--foreground)">{t("nav.brand")}</p>
             <p className="hidden text-[10px] text-(--muted-fg) sm:block">{t("nav.tagline")}</p>
@@ -68,6 +77,9 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2">
+
+          {/* Renders nothing until the browser says the app is installable. */}
+          <InstallPrompt />
 
           {/* Language selector */}
           <div className="relative">

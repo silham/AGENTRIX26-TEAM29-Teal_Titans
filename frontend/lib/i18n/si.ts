@@ -19,6 +19,8 @@ export const si: Dictionary = {
     language: "භාෂාව",
     account: "ගිණුම් මෙනුව",
     home: "මුල් පිටුව",
+    install: "යෙදුම ස්ථාපනය කරන්න",
+    logoAlt: "HelpLK",
   },
 
   landing: {

@@ -23,16 +23,30 @@ const notoTamil = Noto_Sans_Tamil({
 });
 
 export const metadata: Metadata = {
+  applicationName: "HelpLK",
   title: "HelpLK — Government Services Guide",
   description:
     "Free step-by-step guide for Sri Lanka government services. Get help with passports, NIC, driving licences, birth certificates and more.",
   keywords: ["Sri Lanka", "government services", "passport", "NIC", "driving licence", "birth certificate"],
+  // iOS ignores the web app manifest for standalone mode and home-screen
+  // titles — it reads these apple-* meta tags instead, so both are required
+  // for the app to install properly on Android AND iPhone.
+  appleWebApp: {
+    capable: true,
+    title: "HelpLK",
+    statusBarStyle: "default",
+  },
+  // Stops iOS Safari from turning "0771234567" in a plan step into a call link
+  // and restyling it mid-sentence.
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
   themeColor: "#1D4ED8",
   width: "device-width",
   initialScale: 1,
+  // Installed apps should not rubber-band past the notch area.
+  viewportFit: "cover",
 };
 
 /**

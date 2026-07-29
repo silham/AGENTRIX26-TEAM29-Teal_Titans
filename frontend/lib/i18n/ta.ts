@@ -18,6 +18,8 @@ export const ta: Dictionary = {
     language: "மொழி",
     account: "கணக்கு பட்டியல்",
     home: "முகப்பு",
+    install: "செயலியை நிறுவு",
+    logoAlt: "HelpLK",
   },
 
   landing: {
