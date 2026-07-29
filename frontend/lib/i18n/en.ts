@@ -55,6 +55,23 @@ export const en = {
     svcBusinessSub: "Registration and licence steps",
     svcLostAllLabel: "Lost all documents",
     svcLostAllSub: "After flood, fire or theft",
+    // Life Events — a big life change usually bundles several government
+    // procedures. Picking one pre-fills the goal box; the English phrase in the
+    // URL stays fixed as a stable identifier, same rule as the service shortcuts.
+    lifeEventsTitle: "Life Events",
+    lifeEventsSub: "A big change often needs several steps. Pick what is happening.",
+    leMarriedLabel: "Getting married",
+    leMarriedSub: "Register your marriage",
+    leChildLabel: "New baby",
+    leChildSub: "Register a birth",
+    leAbroadLabel: "Going abroad",
+    leAbroadSub: "Work or travel overseas",
+    leBereavementLabel: "Loss in the family",
+    leBereavementSub: "Documents after a death",
+    leMovingLabel: "Moving home",
+    leMovingSub: "Update your address",
+    leLandLabel: "Buying land",
+    leLandSub: "Property and legal papers",
     howItWorks: "How it works",
     how1Title: "Tell us what you need",
     how1Desc:
