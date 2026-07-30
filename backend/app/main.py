@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, cases, documents, forms, run
+from app.api import admin, auth, cases, documents, forms, run, voice
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,7 @@ app.include_router(run.router)        # M2
 app.include_router(documents.router)  # M5
 app.include_router(forms.router)      # M5
 app.include_router(admin.router)      # M6 — knowledge base (admin only)
+app.include_router(voice.router)      # Voice input (speech-to-text fallback)
 
 
 @app.get("/health", tags=["meta"])

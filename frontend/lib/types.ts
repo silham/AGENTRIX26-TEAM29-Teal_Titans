@@ -147,6 +147,15 @@ export interface KnowledgeSearchResponse {
   hits: KnowledgeSearchHit[];
 }
 
+// ── Voice input (mirrors backend/app/schemas/voice.py) ────────────────────
+
+/** The language actually spoken, never translated — see agents.md #27. */
+export interface VoiceTranscribeResponse {
+  text: string;
+  language: Language;
+  confidence: number;
+}
+
 // ── SSE event shape (mirrors backend/app/schemas/run.py) ─────────────────
 
 export type AgentStatus = "started" | "completed" | "error" | "paused";

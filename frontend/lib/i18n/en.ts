@@ -94,6 +94,9 @@ export const en = {
     clear: "Clear",
     submit: "Start my plan",
     hint: "Press Ctrl+Enter to submit",
+    voiceStart: "Speak your request",
+    voiceStop: "Stop recording",
+    voiceError: "Couldn't hear you — please try again or type instead",
     error: "Something went wrong. Please check that the server is running and try again.",
     examplesTitle: "Or choose a common question:",
     // Example chips. These ARE translated — a Sinhala speaker should see
