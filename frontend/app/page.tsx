@@ -6,6 +6,7 @@ import {
   CreditCard, FileSearch, Car, FileText, Store, Flame,
   MessageSquarePlus, ClipboardList, HelpCircle,
   ChevronRight, ArrowRight,
+  Heart, Baby, Plane, Flower2, Truck, LandPlot,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { useT } from "@/lib/i18n";
@@ -50,6 +51,42 @@ const SERVICES = [
     Icon: Flame, labelKey: "landing.svcLostAllLabel", subKey: "landing.svcLostAllSub",
     href: "/goal?q=I+lost+all+my+documents+in+a+flood",
     bg: "bg-orange-100", color: "text-orange-600",
+  },
+];
+
+// Life Events — broad life situations that each bundle several government
+// procedures. Like SERVICES, the `?q=` phrase stays English (stable identifier
+// the backend fast-path recognises); only label/sub keys are translated.
+const LIFE_EVENTS = [
+  {
+    Icon: Heart, labelKey: "landing.leMarriedLabel", subKey: "landing.leMarriedSub",
+    href: "/goal?q=I+am+getting+married+and+need+to+register+it",
+    bg: "bg-rose-100", color: "text-rose-600",
+  },
+  {
+    Icon: Baby, labelKey: "landing.leChildLabel", subKey: "landing.leChildSub",
+    href: "/goal?q=I+need+to+register+the+birth+of+my+baby",
+    bg: "bg-amber-100", color: "text-amber-600",
+  },
+  {
+    Icon: Plane, labelKey: "landing.leAbroadLabel", subKey: "landing.leAbroadSub",
+    href: "/goal?q=I+want+to+go+abroad+for+work",
+    bg: "bg-sky-100", color: "text-sky-600",
+  },
+  {
+    Icon: Flower2, labelKey: "landing.leBereavementLabel", subKey: "landing.leBereavementSub",
+    href: "/goal?q=A+family+member+passed+away+and+I+need+to+handle+the+documents",
+    bg: "bg-slate-100", color: "text-slate-600",
+  },
+  {
+    Icon: Truck, labelKey: "landing.leMovingLabel", subKey: "landing.leMovingSub",
+    href: "/goal?q=I+am+moving+to+a+new+address+and+need+to+update+my+documents",
+    bg: "bg-indigo-100", color: "text-indigo-600",
+  },
+  {
+    Icon: LandPlot, labelKey: "landing.leLandLabel", subKey: "landing.leLandSub",
+    href: "/goal?q=I+am+buying+land+and+need+the+legal+documents",
+    bg: "bg-green-100", color: "text-green-600",
   },
 ];
 
@@ -121,6 +158,35 @@ export default function LandingPage() {
               </div>
             </Link>
           </motion.div>
+
+          {/* ── Life events ──────────────────────────────────── */}
+          <div>
+            <h2 className="text-base font-bold text-(--foreground)">{t("landing.lifeEventsTitle")}</h2>
+            <p className="mb-3 text-xs text-(--muted-fg)">{t("landing.lifeEventsSub")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              {LIFE_EVENTS.map(({ Icon, labelKey, subKey, href, bg, color }, i) => (
+                <motion.div
+                  key={labelKey}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.05 }}
+                >
+                  <Link
+                    href={href}
+                    className="flex h-full flex-col gap-2 rounded-2xl bg-white p-4 shadow-sm active:scale-95 transition-all"
+                  >
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${bg} ${color}`}>
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold leading-snug text-(--foreground)">{t(labelKey)}</p>
+                      <p className="mt-0.5 text-xs leading-snug text-(--muted-fg)">{t(subKey)}</p>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </div>
 
           {/* ── Common services list ─────────────────────────── */}
           <div>

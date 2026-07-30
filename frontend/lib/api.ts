@@ -5,7 +5,9 @@ import type {
   KnowledgeListResponse,
   KnowledgeSearchResponse,
   KnowledgeStats,
+  Language,
   RunEvent,
+  VoiceTranscribeResponse,
 } from "./types";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -93,6 +95,21 @@ export class AuthError extends Error {
   constructor() { super("401"); this.name = "AuthError"; }
 }
 
+// Thrown for other non-2xx responses. `detail` is the backend's own message
+// (already localized server-side where applicable, e.g. the guardrail's
+// out-of-scope refusal) — callers that want to show it verbatim can, callers
+// that don't can keep using `message`/a generic fallback.
+export class ApiError extends Error {
+  status: number;
+  detail?: string;
+  constructor(status: number, detail?: string) {
+    super(detail ?? `${status}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 15_000;
 /**
  * Endpoints that may translate on a cold cache need more than the default.
@@ -119,7 +136,10 @@ async function request<T>(
       signOut();
       throw new AuthError();
     }
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { detail?: string } | null;
+      throw new ApiError(res.status, body?.detail);
+    }
     return res.json() as Promise<T>;
   } finally {
     clearTimeout(timeout);
@@ -224,6 +244,32 @@ export const api = {
       { method: "POST" },
       TRANSLATING_TIMEOUT_MS,
     ),
+
+  // ── Voice input ────────────────────────────────────────────────────────
+  // Fallback path only: browsers with native Web Speech API support (Chrome,
+  // Edge) transcribe client-side in VoiceInputButton and never call this.
+  // Used by Safari/iOS and any browser without SpeechRecognition, so every
+  // supported language still has a voice-input path.
+  //
+  // Raw fetch, not request<T>: request<T> force-sets Content-Type to
+  // application/json, which would destroy the multipart boundary.
+  transcribeVoice: async (audio: Blob, language: Language): Promise<VoiceTranscribeResponse> => {
+    const fd = new FormData();
+    const ext = audio.type.includes("mp4") ? "mp4" : audio.type.includes("wav") ? "wav" : "webm";
+    fd.append("file", audio, `voice.${ext}`);
+    fd.append("language", language);
+    const res = await fetch(`${BACKEND}/voice/transcribe`, {
+      method: "POST",
+      headers: authHeaders() as Record<string, string>,
+      body: fd,
+    });
+    if (res.status === 401) { signOut(); throw new AuthError(); }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error((body as { detail?: string }).detail ?? `Transcription failed (${res.status})`);
+    }
+    return body as VoiceTranscribeResponse;
+  },
 
   // ── Admin knowledge base ──────────────────────────────────────────────
   // Every call here 403s for non-admins; the UI gate is cosmetic (see isAdmin).
