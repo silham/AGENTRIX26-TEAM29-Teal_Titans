@@ -7,7 +7,7 @@ import { ArrowRight, ChevronLeft, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import VoiceInputButton from "@/components/VoiceInputButton";
-import { AuthError, api, isAuthenticated } from "@/lib/api";
+import { ApiError, AuthError, api, isAuthenticated } from "@/lib/api";
 import { isLanguage, useLanguage, useT } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 
@@ -82,7 +82,14 @@ function GoalContent() {
         router.push("/auth?next=/goal");
         return;
       }
-      setError(String(err));
+      // 422 here is the scope guardrail refusing an off-topic goal; its
+      // `detail` is a citizen-facing message (already localized server-side),
+      // so show it verbatim instead of the generic fallback.
+      setError(
+        err instanceof ApiError && err.status === 422 && typeof err.detail === "string"
+          ? err.detail
+          : t("goal.error"),
+      );
       setLoading(false);
     }
   }
@@ -191,7 +198,7 @@ function GoalContent() {
                 exit={{ opacity: 0 }}
                 className="rounded-xl border border-red-200 bg-(--danger-light) px-4 py-3 text-sm text-(--danger)"
               >
-                {t("goal.error")}
+                {error}
               </motion.div>
             )}
           </AnimatePresence>

@@ -95,6 +95,21 @@ export class AuthError extends Error {
   constructor() { super("401"); this.name = "AuthError"; }
 }
 
+// Thrown for other non-2xx responses. `detail` is the backend's own message
+// (already localized server-side where applicable, e.g. the guardrail's
+// out-of-scope refusal) — callers that want to show it verbatim can, callers
+// that don't can keep using `message`/a generic fallback.
+export class ApiError extends Error {
+  status: number;
+  detail?: string;
+  constructor(status: number, detail?: string) {
+    super(detail ?? `${status}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 15_000;
 /**
  * Endpoints that may translate on a cold cache need more than the default.
@@ -121,7 +136,10 @@ async function request<T>(
       signOut();
       throw new AuthError();
     }
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { detail?: string } | null;
+      throw new ApiError(res.status, body?.detail);
+    }
     return res.json() as Promise<T>;
   } finally {
     clearTimeout(timeout);

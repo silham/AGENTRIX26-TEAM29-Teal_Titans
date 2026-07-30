@@ -10,8 +10,10 @@ from fastapi import Response
 
 from app.auth.jwt import CurrentUser, get_current_user
 from app.db.session import get_db
+from app.guardrails import check_scope
 from app.i18n.deps import request_language
 from app.i18n.localize import DETAIL_FIELDS, LIST_FIELDS, localize_case, localize_cases
+from app.i18n.translator import translate_one
 from app.i18n.understand import normalize_input
 from app.rag import rules
 from app.repositories import cases as repo
@@ -49,6 +51,18 @@ def create_case(
     normalisation call does not stall the event loop.
     """
     analysis = normalize_input(body.goal)
+
+    scope = check_scope(analysis.english)
+    if not scope.in_scope:
+        message = translate_one(
+            "HelpLK AI only helps with Sri Lankan government services and "
+            "documentation procedures, such as a lost NIC, passport, driving "
+            "licence, birth/marriage certificate, or business registration. "
+            "Please describe a government-related need.",
+            analysis.detected_language,
+        )
+        raise HTTPException(status_code=422, detail=message)
+
     return repo.create_case(
         db,
         user_id=user.id,
