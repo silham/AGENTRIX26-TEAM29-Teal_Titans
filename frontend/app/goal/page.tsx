@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ChevronLeft, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import VoiceInputButton from "@/components/VoiceInputButton";
 import { AuthError, api, isAuthenticated } from "@/lib/api";
 import { isLanguage, useLanguage, useT } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
@@ -132,6 +133,20 @@ function GoalContent() {
               style={{ minHeight: 80, maxHeight: 200, outline: "none", boxShadow: "none" }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleStart();
+              }}
+            />
+
+            {/* Voice input: native Web Speech API where available, otherwise
+                records and sends to Gemini transcription — see
+                components/VoiceInputButton.tsx for why both paths exist. */}
+            <VoiceInputButton
+              className="mb-0.5"
+              onTranscript={(text, detectedLanguage) => {
+                setGoal((g) => (g ? `${g} ${text}`.trim() : text));
+                if (detectedLanguage && detectedLanguage !== language) {
+                  setLanguage(detectedLanguage);
+                }
+                textareaRef.current?.focus();
               }}
             />
 

@@ -5,7 +5,9 @@ import type {
   KnowledgeListResponse,
   KnowledgeSearchResponse,
   KnowledgeStats,
+  Language,
   RunEvent,
+  VoiceTranscribeResponse,
 } from "./types";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
@@ -224,6 +226,32 @@ export const api = {
       { method: "POST" },
       TRANSLATING_TIMEOUT_MS,
     ),
+
+  // ── Voice input ────────────────────────────────────────────────────────
+  // Fallback path only: browsers with native Web Speech API support (Chrome,
+  // Edge) transcribe client-side in VoiceInputButton and never call this.
+  // Used by Safari/iOS and any browser without SpeechRecognition, so every
+  // supported language still has a voice-input path.
+  //
+  // Raw fetch, not request<T>: request<T> force-sets Content-Type to
+  // application/json, which would destroy the multipart boundary.
+  transcribeVoice: async (audio: Blob, language: Language): Promise<VoiceTranscribeResponse> => {
+    const fd = new FormData();
+    const ext = audio.type.includes("mp4") ? "mp4" : audio.type.includes("wav") ? "wav" : "webm";
+    fd.append("file", audio, `voice.${ext}`);
+    fd.append("language", language);
+    const res = await fetch(`${BACKEND}/voice/transcribe`, {
+      method: "POST",
+      headers: authHeaders() as Record<string, string>,
+      body: fd,
+    });
+    if (res.status === 401) { signOut(); throw new AuthError(); }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error((body as { detail?: string }).detail ?? `Transcription failed (${res.status})`);
+    }
+    return body as VoiceTranscribeResponse;
+  },
 
   // ── Admin knowledge base ──────────────────────────────────────────────
   // Every call here 403s for non-admins; the UI gate is cosmetic (see isAdmin).

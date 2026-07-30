@@ -1,0 +1,264 @@
+========================================================================
+HelpLK AI — 5:00 PITCH SCRIPT
+Verbatim script + speaker notes. Pairs with pitch-slides.txt.
+========================================================================
+
+RUN SHEET
+  0:00  Slide 1  Title ............ 0:20   ~50 words
+  0:20  Slide 2  The Problem ...... 0:45   ~110 words
+  1:05  Slide 3  The App .......... 0:45   ~110 words
+  1:50  Slide 4  How It Works ..... 0:40   ~95 words
+  2:30  Slide 5  Why It Matters ... 0:40   ~95 words
+  3:10  Slide 6  App Demo (video) . 1:40   video runs
+  4:50  Slide 6  Close ............ 0:10   ~25 words
+                                    -----
+                                     5:00
+
+  Spoken total ≈ 485 words. At a calm 145–155 wpm that lands at 3:15.
+  The 25-second cushion is deliberate — do not fill it. See "IF YOU ARE
+  RUNNING LONG" at the bottom.
+
+  ⚠ Your demo video is 2:00. The run sheet above gives it 1:40. Either
+    trim the video to 1:40, or cut Slide 5 down using the cut-list.
+
+DELIVERY RULES
+  · Pause a full beat after every line marked [PAUSE]. Silence reads as
+    confidence and it is where judges form opinions.
+  · One idea per slide. Do not read the cards aloud — the judges can
+    read. Say the thing that is NOT on the slide.
+  · The NIC-to-passport example is the spine of the pitch. Plant it on
+    Slide 2, pay it off on Slide 4, show it on Slide 6.
+
+
+========================================================================
+SLIDE 1 — TITLE  (0:00 – 0:20)
+========================================================================
+
+SCRIPT
+  "ChatGPT answers questions.
+
+  [PAUSE]
+
+  HelpLK AI executes government procedures.
+
+  We're an agentic citizen services copilot for Sri Lanka. A citizen
+  describes their situation in their own words, and a team of AI agents
+  plans, verifies and tracks the entire government procedure for them."
+
+SPEAKER NOTES
+  · Open cold on the contrast line. No "hello, we are team TealTitans" —
+    that costs eight seconds and buys nothing.
+  · Land "executes" hard. It is the whole differentiator.
+  · Do not explain the buttons on the slide. Move.
+
+
+========================================================================
+SLIDE 2 — THE PROBLEM  (0:20 – 1:05)
+========================================================================
+
+SCRIPT
+  "Here's the thing — this information is already public. Every
+  department has a website.
+
+  So try this. You've lost your ID card, and you need a passport.
+
+  [PAUSE]
+
+  Nowhere online will tell you that your passport application is blocked
+  until you get a duplicate NIC. That the duplicate NIC needs a police
+  report. That the police report needs your birth certificate. Nobody
+  tells you the order.
+
+  So you find out at the counter. You go home. You come back. You bring
+  the wrong document, or you pay a broker to know it for you.
+
+  The information isn't missing. The sequence is."
+
+SPEAKER NOTES
+  · This is your strongest 45 seconds. Slow down here, don't rush it.
+  · The three cards on screen — wrong order, scattered rules, repeat
+    visits — should never be read aloud. The story covers all three.
+  · "The information isn't missing. The sequence is." → land it, pause,
+    then click through. That sentence is what a judge repeats later.
+  · If a judge is Sri Lankan, this lands as lived experience. Watch for
+    the nod and don't over-explain past it.
+
+
+========================================================================
+SLIDE 3 — THE APP  (1:05 – 1:50)
+========================================================================
+
+SCRIPT
+  "So we built the sequence.
+
+  HelpLK AI is not a chatbot. It's a stateful case manager. Eight
+  specialist agents — a Planner, a Knowledge agent, a Dependency agent,
+  an Eligibility agent and so on — running on a LangGraph state machine.
+
+  Two things make it safe enough for government.
+
+  First, it's hybrid. What's locked, and who's eligible, is decided by
+  deterministic rules — never by the model. The model only writes the
+  explanation, and every step is cited back to an official document.
+
+  Second, it remembers. Government procedures take weeks. You can pause
+  today, come back in a month, and the case is exactly where you left
+  it — in Sinhala, Tamil or English."
+
+SPEAKER NOTES
+  · The four cards map to the four beats: Agentic, Grounded, Stateful,
+    Trilingual. Let the slide do that work silently.
+  · "Never by the model" is your anti-hallucination answer, delivered
+    before anyone has to ask it. Say it deliberately.
+  · Don't list all eight agents. Three plus "and so on" sounds like a
+    system; eight sounds like a slide.
+
+
+========================================================================
+SLIDE 4 — HOW IT WORKS  (1:50 – 2:30)
+========================================================================
+
+SCRIPT
+  "Four steps, and I'll use the same case.
+
+  The citizen types 'I lost my NIC and I need a passport.' Plain
+  language, any of the three languages.
+
+  The Planner spots two services. The Dependency agent locks the
+  passport step and tells you exactly why it's locked. The Checklist
+  agent turns that into your documents.
+
+  You upload what you have — the Document agent reads it and tells you
+  what's missing or unsigned.
+
+  And it tracks. Progress, next action, what's still blocked.
+
+  Four steps. Describe, plan, prepare, track."
+
+SPEAKER NOTES
+  · Gesture along the numbered track 1-2-3-4 as you go. It syncs the
+    room to the slide without you narrating the labels.
+  · "Tells you exactly why it's locked" — this is explainability, and
+    it is the feature government buyers actually care about.
+  · Close on the four verbs so the slide resolves cleanly into the demo.
+
+
+========================================================================
+SLIDE 5 — WHY IT MATTERS  (2:30 – 3:10)
+========================================================================
+
+SCRIPT
+  "Who buys this? The government.
+
+  Because every incomplete application we prevent is a counter visit
+  they never have to handle — and they get data on exactly where
+  citizens get stuck.
+
+  For the citizen it's fewer trips, fewer brokers, and guidance in the
+  language they actually speak.
+
+  And this is real, not a mockup. It runs today, entirely on free tier.
+  The path to production isn't a rewrite — it's integration. The same
+  graph that shows you an office address calls a real appointment API
+  instead.
+
+  Let me show you."
+
+SPEAKER NOTES
+  · Lead with the buyer. Judges score commercial viability and most
+    teams bury it.
+  · "Real, not a mockup" is the setup line for the demo — it makes the
+    video evidence rather than decoration.
+  · "Let me show you" is the click cue. Have the video ready to play
+    on the first press.
+
+
+========================================================================
+SLIDE 6 — APP DEMO  (3:10 – 4:50)
+========================================================================
+
+  ▶ Play the video. Stop talking.
+
+IF THE VIDEO HAS NO AUDIO, narrate only these cues — nothing else:
+  0:10  "That's the real app, in Sinhala."
+  0:35  "One sentence in. Watch the agents work."
+  1:00  "There's the plan — and the locked step, with the reason."
+  1:20  "Documents checked. Progress saved."
+
+IF THE VIDEO FAILS  → switch to the five-screen App Demo slide and say:
+  "Five real screens. A citizen's home page. A plan finished, six of
+  six. The same plan in Sinhala, and another in Tamil. And the admin
+  side — ten official documents, thirty-one indexed chunks. That's what
+  every step is cited against."
+  (~25 seconds. Then go straight to the close.)
+
+SPEAKER NOTES
+  · Do not talk over a video with its own audio. Presenters who narrate
+    their own demo look nervous.
+  · Watch the judges, not the screen. You already know what happens.
+  · Cue the video from a paused first frame, not from the file browser.
+
+
+========================================================================
+CLOSE  (4:50 – 5:00)
+========================================================================
+
+SCRIPT
+  "The information was always public. We built the part that was
+  missing — the order.
+
+  ChatGPT answers questions. HelpLK AI manages the citizen journey.
+  From confusion to completion. Thank you."
+
+SPEAKER NOTES
+  · Say "thank you" and stop. Do not add "and in future we'd like to…"
+    — that hands your last impression to a feature backlog.
+  · Stay standing, front of stage, for Q&A.
+
+
+========================================================================
+IF YOU ARE RUNNING LONG — CUT IN THIS ORDER
+========================================================================
+
+  1. Slide 5, the free-tier / integration paragraph .......... saves 15s
+  2. Slide 3, the second beat about remembering .............. saves 15s
+  3. Slide 4, the document-upload sentence ................... saves 10s
+
+  Never cut: the NIC-to-passport story on Slide 2, "never by the model"
+  on Slide 3, or the close. Those are the three lines the pitch is
+  actually made of.
+
+
+========================================================================
+Q&A — ANSWER IN ONE BREATH, THEN STOP
+========================================================================
+
+"Why not just ChatGPT?"
+  "ChatGPT is stateless and ungrounded. We add case memory, dependency
+  rules, document verification and an audit trail. The LLM is one
+  component inside a governed system — it isn't the system."
+
+"How do you know it won't hallucinate a requirement?"
+  "Locking and eligibility are deterministic rules from procedure JSON,
+  never the model. The model writes explanation only, and every step
+  carries a citation the citizen can click."
+
+"Is the Sinhala and Tamil real, or translated captions?"
+  "Real. Input is normalised to English on the way in, output is
+  translated at the API boundary. The graph, rules and database stay
+  English-only — so switching language is a pure read, zero writes,
+  and nothing in the citizen's case can be lost by it."
+
+"How current is the government information?"
+  "Sourced from official pages and PDFs, indexed with a citation on
+  every answer. Staff re-index through the admin page — you saw it in
+  the demo. And when confidence is low we say so rather than guess."
+
+"What's the business model?"
+  "Government or its digital-transformation partner. The value is
+  measurable on their side: incomplete applications, repeat visits,
+  help-desk volume."
+
+"What if a procedure changes tomorrow?"
+  "That's why rules and content are data, not code. Update the
+  procedure JSON or re-index the document — no deployment."
