@@ -11,7 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# CPU-only torch first: sentence-transformers only needs torch>=1.11.0 as a
+# local-embedding fallback, but its default wheel drags in the full CUDA
+# toolkit (cublas/cudnn/nccl/nvshmem/triton, several GB). Satisfying the
+# constraint here keeps the resolver from ever reaching for that build.
+RUN pip install --no-cache-dir --default-timeout=120 --retries 5 \
+    torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir --default-timeout=120 --retries 5 -r requirements.txt
 
 COPY . .
 
